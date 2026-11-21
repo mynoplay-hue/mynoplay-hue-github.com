@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player Nickname Directory</title>
+  <meta name="description" content="Find a player's current nickname by game ID, or an ID by part of a nickname.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              950: '#020617',
+              900: '#0f172a',
+              800: '#1e293b',
+              700: '#334155',
+              600: '#475569',
+              500: '#64748b',
+              400: '#94a3b8',
+              300: '#cbd5e1',
+              200: '#e2e8f0',
+              100: '#f1f5f9',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background: #020617; color: #f1f5f9; }
+    .tab-active { background: #6366f1; color: white; }
+    .input-field {
+      width: 100%;
+      border-radius: 0.75rem;
+      border: 1px solid #334155;
+      background: #020617;
+      padding: 0.625rem 1rem;
+      color: white;
+      outline: none;
+    }
+    .input-field::placeholder { color: #475569; }
+    .input-field:focus { border-color: #818cf8; }
+    mark { background: rgba(252, 211, 77, 0.9); color: #0f172a; border-radius: 2px; padding: 0 2px; }
+    .fade-in { animation: fadeIn 0.2s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen">
+
+<div id="app" class="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
+  <!-- Header -->
+  <header class="mb-6">
+    <p class="text-xs uppercase tracking-[0.2em] text-indigo-300">Player directory</p>
+    <h1 class="mt-1 text-3xl font-bold text-white sm:text-4xl">Who changed their nickname?</h1>
+    <p class="mt-2 text-slate-400">
+      Look up a player's current nickname by game ID – or find an ID by any part of a nickname,
+      past or present.
+    </p>
+  </header>
+
+  <!-- Stats -->
+  <div class="mb-6 grid grid-cols-3 gap-3 text-center">
+    <div class="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3">
+      <p id="stat-players" class="text-2xl font-semibold text-white">0</p>
+      <p class="text-xs text-slate-500">Players</p>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3">
+      <p id="stat-nicknames" class="text-2xl font-semibold text-white">0</p>
+      <p class="text-xs text-slate-500">Nicknames stored</p>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3">
+      <p id="stat-changed" class="text-2xl font-semibold text-white">0</p>
+      <p class="text-xs text-slate-500">Changed nick</p>
+    </div>
+  </div>
+
+  <!-- Seed button (shown when empty) -->
+  <div id="seed-banner" class="mb-6 hidden rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-5">
+    <p class="font-medium text-white">The database is empty</p>
+    <p class="mt-1 text-sm text-slate-300">
+      Load the starter list of 1000 players, or paste your own on the "Update from list" tab.
+    </p>
+    <button id="btn-seed" class="mt-3 rounded-xl bg-indigo-500 px-5 py-2 font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
+      Load starter list (1000 players)
+    </button>
+    <p id="seed-error" class="mt-2 text-rose-400 hidden"></p>
+  </div>
+
+  <!-- Tabs -->
+  <nav class="mb-5 flex gap-1 rounded-xl bg-slate-900 p-1">
+    <button data-tab="search" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition tab-active">Search</button>
+    <button data-tab="add" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Add manually</button>
+    <button data-tab="import" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Update from list</button>
+    <button data-tab="backup" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Backup</button>
+  </nav>
+
+  <!-- Tab: Search -->
+  <div id="tab-search" class="tab-content">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+      <label for="search-input" class="mb-2 block text-sm font-medium text-slate-300">
+        Search by player ID or part of a nickname
+      </label>
+      <div class="relative">
+        <input id="search-input" type="text" autofocus
+          placeholder="e.g. 7646467  or  Charl  (several IDs: 7646467, 2720541)"
+          class="input-field text-lg pr-10">
+        <button id="search-clear" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white hidden">✕</button>
+      </div>
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-400">
+        <label class="flex cursor-pointer items-center gap-2">
+          <input type="checkbox" id="filter-changed" class="h-4 w-4 accent-indigo-500">
+          Only players who changed nickname
+        </label>
+        <span id="search-status"></span>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">
+        Old nicknames are searched too, so you can find a player by a nickname they used before.
+      </p>
+    </div>
+    <div id="search-results" class="mt-4 space-y-3"></div>
+  </div>
+
+  <!-- Tab: Add -->
+  <div id="tab-add" class="tab-content hidden">
+    <form id="add-form" class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+      <h2 class="text-lg font-semibold text-white">Add a player manually</h2>
+      <p class="mt-1 text-sm text-slate-400">
+        If the ID already exists, the nickname is appended to their history and becomes the current one.
+      </p>
+      <div class="mt-5 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Player ID *</label>
+          <input id="add-gameid" type="text" inputmode="numeric" required placeholder="7646467" class="input-field font-mono">
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Current nickname *</label>
+          <input id="add-nick" type="text" required placeholder="Bazhena" class="input-field">
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-sm text-slate-300">Older nicknames (optional, one per line)</label>
+          <textarea id="add-older" rows="3" placeholder="Old nick 1&#10;Old nick 2" class="input-field"></textarea>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Level (optional)</label>
+          <input id="add-level" type="text" inputmode="numeric" class="input-field">
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Note (optional)</label>
+          <input id="add-note" type="text" placeholder="Friend, cheater…" class="input-field">
+        </div>
+      </div>
+      <div class="mt-5 flex flex-wrap items-center gap-4">
+        <button type="submit" class="rounded-xl bg-indigo-500 px-6 py-2.5 font-medium text-white hover:bg-indigo-400">Save player</button>
+        <p id="add-msg" class="text-sm"></p>
+      </div>
+    </form>
+  </div>
+
+  <!-- Tab: Import -->
+  <div id="tab-import" class="tab-content hidden">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+      <h2 class="text-lg font-semibold text-white">Update from a new list</h2>
+      <p class="mt-1 text-sm text-slate-400">
+        Paste the new list (or upload a .txt file). Every ID is compared with the database: new IDs are added,
+        and if a known ID now has a different nickname, the new nickname is appended and becomes current –
+        old nicknames are kept.
+      </p>
+      <p class="mt-2 rounded-lg bg-slate-950 px-3 py-2 font-mono text-xs text-slate-400">
+        1 "Bazhena" 7646467 1566560000 9999
+      </p>
+      <textarea id="import-text" rows="10" spellcheck="false"
+        placeholder='1 "Nick" 7646467 1566560000 9999&#10;2 "Another nick" 2720541 1556036845 7427&#10;…'
+        class="input-field mt-4 font-mono text-sm"></textarea>
+      <div class="mt-3 flex flex-wrap items-center gap-3">
+        <input type="file" id="import-file" accept=".txt,text/plain" class="hidden">
+        <button id="btn-upload" class="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Upload .txt</button>
+        <button id="btn-scan" class="rounded-xl bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-600 disabled:opacity-40" disabled>Scan (preview)</button>
+        <button id="btn-do-import" class="rounded-xl bg-indigo-500 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-40" disabled>Import & update</button>
+        <span id="import-linecount" class="text-sm text-slate-500"></span>
+      </div>
+      <p id="import-error" class="mt-4 text-rose-400 hidden"></p>
+      <div id="import-report" class="hidden mt-5 rounded-xl border border-slate-700 bg-slate-950 p-4"></div>
+    </div>
+  </div>
+
+  <!-- Tab: Backup -->
+  <div id="tab-backup" class="tab-content hidden">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+      <h2 class="text-lg font-semibold text-white">Export / Import data</h2>
+      <p class="mt-1 text-sm text-slate-400">
+        Download a backup of all your data, or restore from a previously saved file.
+        All data is stored in your browser's localStorage.
+      </p>
+      <div class="mt-5 flex flex-wrap gap-3">
+        <button id="btn-export" class="rounded-xl bg-emerald-600 px-5 py-2.5 font-medium text-white hover:bg-emerald-500">
+          📥 Export data (.json)
+        </button>
+        <input type="file" id="import-backup-file" accept=".json,application/json" class="hidden">
+        <button id="btn-import-backup" class="rounded-xl bg-amber-600 px-5 py-2.5 font-medium text-white hover:bg-amber-500">
+          📤 Import from backup
+        </button>
+        <button id="btn-clear-all" class="rounded-xl border border-rose-500/40 px-5 py-2.5 font-medium text-rose-300 hover:bg-rose-500/10">
+          🗑 Clear all data
+        </button>
+      </div>
+      <p id="backup-msg" class="mt-4 text-sm hidden"></p>
+      <div class="mt-6 rounded-lg bg-slate-950 p-4">
+        <p class="text-xs text-slate-500">Storage info</p>
+        <p id="storage-info" class="mt-1 text-sm text-slate-300">Calculating…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Database layer (localStorage)
+// ============================================================
+const DB_KEY = 'player_directory_db';
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) { console.error('DB load error', e); }
+  return { players: {} }; // { gameId(str): { gameId, currentNick, level, note, source, createdAt, updatedAt, nicks: [{nick, source, seenAt}] } }
+}
+
+function saveDB(db) {
+  localStorage.setItem(DB_KEY, JSON.stringify(db));
+}
+
+let db = loadDB();
+
+function getStats() {
+  const players = Object.keys(db.players);
+  let totalNicks = 0;
+  let changed = 0;
+  for (const gid of players) {
+    const p = db.players[gid];
+    totalNicks += p.nicks.length;
+    if (p.nicks.length > 1) changed++;
+  }
+  return { players: players.length, nicknames: totalNicks, changed };
+}
+
+function updateStats() {
+  const s = getStats();
+  document.getElementById('stat-players').textContent = s.players.toLocaleString('en-US');
+  document.getElementById('stat-nicknames').textContent = s.nicknames.toLocaleString('en-US');
+  document.getElementById('stat-changed').textContent = s.changed.toLocaleString('en-US');
+
+  const banner = document.getElementById('seed-banner');
+  if (s.players === 0) {
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+// ============================================================
+// Parse list (same format as original)
+// ============================================================
+const QUOTE = `["\u201C\u201D\u201E]`;
+const quotedRe = new RegExp(`^\\s*(?:\\d+\\s+)?${QUOTE}(.*)${QUOTE}\\s+((?:\\d+\\s*)+)$`);
+const unquotedRe = /^\s*\d+\s+(.+?)\s+(\d+)\s+\d+\s+(\d+)\s*$/;
+
+function parseList(text) {
+  const lines = text.replace(/\r/g, '').split('\n');
+  const entries = [];
+  const invalid = [];
+  let totalLines = 0;
+
+  lines.forEach((raw, index) => {
+    if (!raw.trim()) return;
+    totalLines++;
+    let nick = null, gameId = null, level = null;
+
+    const q = raw.match(quotedRe);
+    if (q) {
+      const nums = q[2].trim().split(/\s+/);
+      nick = q[1];
+      gameId = Number(nums[0]);
+      level = nums.length >= 2 ? Number(nums[nums.length - 1]) : null;
+    } else {
+      const u = raw.match(unquotedRe);
+      if (u) {
+        nick = u[1];
+        gameId = Number(u[2]);
+        level = Number(u[3]);
+      }
+    }
+
+    if (nick === null || nick.trim() === '' || gameId === null || !Number.isSafeInteger(gameId) || gameId <= 0) {
+      invalid.push({ line: index + 1, text: raw.slice(0, 120) });
+      return;
+    }
+
+    if (level !== null && (!Number.isSafeInteger(level) || level > 2147483647)) level = null;
+    entries.push({ nick, gameId, level });
+  });
+
+  return { entries, invalid, totalLines };
+}
+
+// ============================================================
+// Import / seed logic
+// ============================================================
+function importEntries(entries, source, dryRun) {
+  // Group by gameId, deduplicate nicks within group
+  const grouped = new Map();
+  for (const e of entries) {
+    const g = grouped.get(e.gameId) || { nicks: [], level: null };
+    const i = g.nicks.indexOf(e.nick);
+    if (i >= 0) g.nicks.splice(i, 1);
+    g.nicks.push(e.nick);
+    if (e.level !== null) g.level = e.level;
+    grouped.set(e.gameId, g);
+  }
+
+  const report = { newPlayers: 0, unchanged: 0, renamed: [], newSample: [] };
+
+  for (const [gameId, g] of grouped) {
+    const gid = String(gameId);
+    const latest = g.nicks[g.nicks.length - 1];
+    const existing = db.players[gid];
+
+    if (!existing) {
+      report.newPlayers++;
+      if (report.newSample.length < 20) report.newSample.push({ gameId, nick: latest });
+      if (!dryRun) {
+        const now = new Date().toISOString();
+        db.players[gid] = {
+          gameId: Number(gid),
+          currentNick: latest,
+          level: g.level,
+          note: null,
+          source: source,
+          createdAt: now,
+          updatedAt: now,
+          nicks: g.nicks.map(nick => ({ nick, source, seenAt: now }))
+        };
+      }
+      continue;
+    }
+
+    // Existing player – check for new nicks
+    const seenNicks = new Set(existing.nicks.map(n => n.nick));
+    const missing = g.nicks.filter(n => !seenNicks.has(n));
+    const now = new Date().toISOString();
+
+    if (latest !== existing.currentNick) {
+      report.renamed.push({ gameId, oldNick: existing.currentNick, newNick: latest });
+      if (!dryRun) {
+        // Add missing nicks
+        for (const nick of missing) {
+          existing.nicks.push({ nick, source, seenAt: now });
+        }
+        existing.currentNick = latest;
+        if (g.level !== null) existing.level = g.level;
+        existing.updatedAt = now;
+      }
+    } else {
+      report.unchanged++;
+      if (!dryRun) {
+        for (const nick of missing) {
+          existing.nicks.push({ nick, source, seenAt: now });
+        }
+        if (g.level !== null && g.level !== existing.level) {
+          existing.level = g.level;
+          existing.updatedAt = now;
+        }
+      }
+    }
+  }
+
+  if (!dryRun) saveDB(db);
+  return report;
+}
+
+// ============================================================
+// Search
+// ============================================================
+function searchPlayers(query, opts) {
+  const q = query.trim();
+  let results = [];
+  const allPlayers = Object.values(db.players);
+
+  if (!q) {
+    // Show recently updated
+    results = allPlayers.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 50);
+  } else {
+    // Check if multiple IDs
+    if (/^\d+(?:[\s,;]+\d+)+$/.test(q)) {
+      const ids = q.split(/[\s,;]+/).map(Number).filter(n => Number.isSafeInteger(n));
+      const idSet = new Set(ids.map(String));
+      results = allPlayers.filter(p => idSet.has(String(p.gameId)));
+    } else {
+      const qLower = q.toLowerCase();
+      results = allPlayers.filter(p => {
+        // Match current nick
+        if (p.currentNick.toLowerCase().includes(qLower)) return true;
+        // Match any historical nick
+        if (p.nicks.some(n => n.nick.toLowerCase().includes(qLower))) return true;
+        // Match ID prefix
+        if (/^\d+$/.test(q) && String(p.gameId).startsWith(q)) return true;
+        return false;
+      });
+      // Sort: exact ID match first, then exact nick match, then alphabetical
+      results.sort((a, b) => {
+        const aExactId = String(a.gameId) === q ? 0 : 1;
+        const bExactId = String(b.gameId) === q ? 0 : 1;
+        if (aExactId !== bExactId) return aExactId - bExactId;
+        const aExactNick = a.currentNick.toLowerCase() === qLower ? 0 : 1;
+        const bExactNick = b.currentNick.toLowerCase() === qLower ? 0 : 1;
+        if (aExactNick !== bExactNick) return aExactNick - bExactNick;
+        return a.currentNick.localeCompare(b.currentNick);
+      });
+    }
+  }
+
+  if (opts.changedOnly) {
+    results = results.filter(p => p.nicks.length > 1);
+  }
+
+  return { total: results.length, results: results.slice(0, 100) };
+}
+
+// ============================================================
+// UI Helpers
+// ============================================================
+function highlight(text, query) {
+  const q = query.trim();
+  if (!q) return escapeHtml(text);
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return escapeHtml(text);
+  return escapeHtml(text.slice(0, i)) +
+    '<mark>' + escapeHtml(text.slice(i, i + q.length)) + '</mark>' +
+    escapeHtml(text.slice(i + q.length));
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString();
+}
+
+// ============================================================
+// Render search results
+// ============================================================
+let currentQuery = '';
+
+function renderResults(query) {
+  currentQuery = query;
+  const changedOnly = document.getElementById('filter-changed').checked;
+  const { total, results } = searchPlayers(query, { changedOnly });
+  const container = document.getElementById('search-results');
+  const status = document.getElementById('search-status');
+
+  if (!query) {
+    status.textContent = `Recently updated · showing ${results.length} of ${total}`;
+  } else {
+    status.textContent = total === 0 ? 'No matches' :
+      `${total} match${total === 1 ? '' : 'es'}${total > results.length ? ` (showing ${results.length})` : ''}`;
+  }
+
+  if (results.length === 0) {
+    container.innerHTML = `<div class="rounded-2xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
+      Nothing found. If this player is new, add them on the "Add manually" tab.
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = results.map(p => renderPlayerCard(p, query)).join('');
+}
+
+function renderPlayerCard(p, query) {
+  const previous = p.nicks.filter(n => n.nick !== p.currentNick);
+  const isManual = p.source === 'manual';
+  const hasChanged = previous.length > 0;
+
+  return `
+  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-lg shadow-black/20 fade-in" data-gameid="${p.gameId}">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-xs uppercase tracking-wider text-slate-500">Current nickname</p>
+        <h3 class="mt-0.5 break-all text-xl font-semibold text-white whitespace-pre-wrap">
+          ${highlight(p.currentNick, query)}
+        </h3>
+      </div>
+      <div class="text-right">
+        <p class="text-xs uppercase tracking-wider text-slate-500">Player ID</p>
+        <button onclick="copyId(${p.gameId}, this)" title="Copy ID"
+          class="mt-0.5 rounded-lg bg-indigo-500/15 px-2.5 py-1 font-mono text-lg font-semibold text-indigo-300 transition hover:bg-indigo-500/25">
+          ${p.gameId}<span class="ml-2 text-xs font-normal text-indigo-200/70">copy</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+      ${p.level !== null ? `<span class="rounded-full bg-slate-800 px-2.5 py-1 text-slate-300">Level ${p.level}</span>` : ''}
+      <span class="rounded-full bg-slate-800 px-2.5 py-1 text-slate-300">${p.nicks.length} nickname${p.nicks.length === 1 ? '' : 's'}</span>
+      ${isManual ? '<span class="rounded-full bg-emerald-500/15 px-2.5 py-1 text-emerald-300">added manually</span>' : ''}
+      ${hasChanged ? '<span class="rounded-full bg-amber-500/15 px-2.5 py-1 text-amber-300">nickname changed</span>' : ''}
+    </div>
+
+    ${previous.length > 0 ? `
+    <div class="mt-3">
+      <p class="text-xs uppercase tracking-wider text-slate-500">Previous nicknames</p>
+      <div class="mt-1.5 flex flex-wrap gap-1.5">
+        ${previous.map(n => `<span class="whitespace-pre-wrap break-all rounded-lg border border-slate-700 bg-slate-800/60 px-2 py-1 text-sm text-slate-300">${highlight(n.nick, query)}</span>`).join('')}
+      </div>
+    </div>` : ''}
+
+    ${p.note ? `<p class="mt-3 text-sm italic text-slate-400">"${escapeHtml(p.note)}"</p>` : ''}
+
+    <button onclick="toggleDetails(this)" class="mt-3 text-sm text-slate-400 underline-offset-4 hover:text-white hover:underline">
+      Manage / history
+    </button>
+
+    <div class="player-details hidden mt-3 space-y-4 border-t border-slate-800 pt-4">
+      <div>
+        <p class="mb-2 text-xs uppercase tracking-wider text-slate-500">Nickname history (oldest first)</p>
+        <ul class="space-y-1.5">
+          ${p.nicks.map(n => {
+            const isCurrent = n.nick === p.currentNick;
+            return `
+            <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/50 px-3 py-2">
+              <div class="min-w-0">
+                <span class="whitespace-pre-wrap break-all text-sm text-slate-100">${escapeHtml(n.nick)}</span>
+                ${isCurrent ? '<span class="ml-2 rounded bg-indigo-500/20 px-1.5 py-0.5 text-xs text-indigo-300">current</span>' : ''}
+                <span class="ml-2 text-xs text-slate-500">${n.source} · ${formatDate(n.seenAt)}</span>
+              </div>
+              <div class="flex gap-3 text-xs">
+                ${!isCurrent ? `<button onclick="setCurrent(${p.gameId}, '${escapeJs(n.nick)}')" class="text-indigo-300 hover:underline">make current</button>` : ''}
+                ${p.nicks.length > 1 ? `<button onclick="removeNick(${p.gameId}, '${escapeJs(n.nick)}')" class="text-rose-400 hover:underline">remove</button>` : ''}
+              </div>
+            </li>`;
+          }).join('')}
+        </ul>
+      </div>
+
+      <form onsubmit="event.preventDefault(); addNick(${p.gameId}, this);" class="flex flex-wrap gap-2">
+        <input type="text" name="newnick" placeholder="New nickname (becomes current)"
+          class="input-field min-w-0 flex-1 text-sm py-2">
+        <button type="submit" class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400">
+          Add nickname
+        </button>
+      </form>
+
+      <form onsubmit="event.preventDefault(); setNote(${p.gameId}, this);" class="flex flex-wrap gap-2">
+        <input type="text" name="note" value="${escapeHtml(p.note || '')}" placeholder="Note about this player (optional)"
+          class="input-field min-w-0 flex-1 text-sm py-2">
+        <button type="submit" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-600">
+          Save note
+        </button>
+      </form>
+
+      <div class="flex items-center justify-between">
+        <p class="player-error text-sm text-rose-400"></p>
+        <button onclick="deletePlayer(${p.gameId})"
+          class="rounded-lg border border-rose-500/40 px-3 py-1.5 text-sm text-rose-300 hover:bg-rose-500/10">
+          Delete player
+        </button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function escapeJs(s) {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+}
+
+// ============================================================
+// Actions
+// ============================================================
+function copyId(gameId, btn) {
+  navigator.clipboard.writeText(String(gameId)).then(() => {
+    const span = btn.querySelector('span');
+    if (span) { span.textContent = 'copied'; setTimeout(() => span.textContent = 'copy', 1200); }
+  });
+}
+
+function toggleDetails(btn) {
+  const details = btn.nextElementSibling;
+  if (details.classList.contains('hidden')) {
+    details.classList.remove('hidden');
+    btn.textContent = 'Hide details';
+  } else {
+    details.classList.add('hidden');
+    btn.textContent = 'Manage / history';
+  }
+}
+
+function setCurrent(gameId, nick) {
+  const p = db.players[String(gameId)];
+  if (!p) return;
+  p.currentNick = nick;
+  p.updatedAt = new Date().toISOString();
+  saveDB(db);
+  refreshAll();
+}
+
+function removeNick(gameId, nick) {
+  const p = db.players[String(gameId)];
+  if (!p) return;
+  if (p.nicks.length <= 1) return alert('A player must keep at least one nickname. Delete the player instead.');
+  p.nicks = p.nicks.filter(n => n.nick !== nick);
+  if (p.currentNick === nick) {
+    p.currentNick = p.nicks[p.nicks.length - 1].nick;
+  }
+  p.updatedAt = new Date().toISOString();
+  saveDB(db);
+  refreshAll();
+}
+
+function addNick(gameId, form) {
+  const input = form.querySelector('input[name="newnick"]');
+  const nick = input.value.trim();
+  if (!nick) return;
+  const p = db.players[String(gameId)];
+  if (!p) return;
+  p.nicks.push({ nick, source: 'manual', seenAt: new Date().toISOString() });
+  p.currentNick = nick;
+  p.updatedAt = new Date().toISOString();
+  saveDB(db);
+  refreshAll();
+}
+
+function setNote(gameId, form) {
+  const input = form.querySelector('input[name="note"]');
+  const p = db.players[String(gameId)];
+  if (!p) return;
+  p.note = input.value.trim() || null;
+  p.updatedAt = new Date().toISOString();
+  saveDB(db);
+  refreshAll();
+}
+
+function deletePlayer(gameId) {
+  const p = db.players[String(gameId)];
+  if (!p) return;
+  if (!confirm(`Delete player ${gameId} (${p.currentNick}) and all nicknames?`)) return;
+  delete db.players[String(gameId)];
+  saveDB(db);
+  refreshAll();
+}
+
+function refreshAll() {
+  updateStats();
+  const q = document.getElementById('search-input').value;
+  renderResults(q);
+}
+
+// ============================================================
+// Tab switching
+// ============================================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.remove('tab-active');
+      b.classList.add('text-slate-400');
+    });
+    btn.classList.add('tab-active');
+    btn.classList.remove('text-slate-400');
+
+    const tabId = btn.dataset.tab;
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById('tab-' + tabId).classList.remove('hidden');
+
+    if (tabId === 'backup') updateStorageInfo();
+  });
+});
+
+// ============================================================
+// Search
+// ============================================================
+let searchTimeout;
+const searchInput = document.getElementById('search-input');
+const searchClear = document.getElementById('search-clear');
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value;
+  searchClear.classList.toggle('hidden', !q);
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => renderResults(q), 200);
+});
+
+searchClear.addEventListener('click', () => {
+  searchInput.value = '';
+  searchClear.classList.add('hidden');
+  renderResults('');
+});
+
+document.getElementById('filter-changed').addEventListener('change', () => {
+  renderResults(searchInput.value);
+});
+
+// Initial render
+renderResults('');
+updateStats();
+
+// ============================================================
+// Seed
+// ============================================================
+document.getElementById('btn-seed').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-seed');
+  const err = document.getElementById('seed-error');
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  err.classList.add('hidden');
+
+  try {
+    const resp = await fetch('data/initial-players.txt');
+    if (!resp.ok) throw new Error('Could not load starter list');
+    const text = await resp.text();
+    const { entries } = parseList(text);
+    importEntries(entries, 'seed', false);
+    refreshAll();
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load starter list (1000 players)';
+  }
+});
+
+// ============================================================
+// Add form
+// ============================================================
+document.getElementById('add-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const gameId = Number(document.getElementById('add-gameid').value);
+  const nick = document.getElementById('add-nick').value.trim();
+  const older = document.getElementById('add-older').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const levelVal = document.getElementById('add-level').value;
+  const level = levelVal ? Number(levelVal) : null;
+  const note = document.getElementById('add-note').value.trim() || null;
+  const msg = document.getElementById('add-msg');
+
+  const gid = String(gameId);
+  const existing = db.players[gid];
+
+  if (existing) {
+    // Update existing
+    const now = new Date().toISOString();
+    existing.nicks.push({ nick, source: 'manual', seenAt: now });
+    for (const onick of older) {
+      if (!existing.nicks.some(n => n.nick === onick)) {
+        existing.nicks.push({ nick: onick, source: 'manual', seenAt: now });
+      }
+    }
+    existing.currentNick = nick;
+    if (level !== null) existing.level = level;
+    if (note) existing.note = note;
+    existing.updatedAt = now;
+    saveDB(db);
+    msg.textContent = `Player ${gameId} already existed – the nickname was added to their history and is now current.`;
+    msg.className = 'text-sm text-emerald-400';
+  } else {
+    // Create new
+    const now = new Date().toISOString();
+    const allNicks = [...older, nick];
+    db.players[gid] = {
+      gameId,
+      currentNick: nick,
+      level,
+      note,
+      source: 'manual',
+      createdAt: now,
+      updatedAt: now,
+      nicks: allNicks.map(n => ({ nick: n, source: 'manual', seenAt: now }))
+    };
+    saveDB(db);
+    msg.textContent = `Player ${gameId} added.`;
+    msg.className = 'text-sm text-emerald-400';
+  }
+
+  // Clear form
+  document.getElementById('add-gameid').value = '';
+  document.getElementById('add-nick').value = '';
+  document.getElementById('add-older').value = '';
+  document.getElementById('add-level').value = '';
+  document.getElementById('add-note').value = '';
+
+  updateStats();
+  renderResults(searchInput.value);
+});
+
+// ============================================================
+// Import tab
+// ============================================================
+const importText = document.getElementById('import-text');
+const btnScan = document.getElementById('btn-scan');
+const btnDoImport = document.getElementById('btn-do-import');
+const importLinecount = document.getElementById('import-linecount');
+const importError = document.getElementById('import-error');
+const importReport = document.getElementById('import-report');
+
+importText.addEventListener('input', () => {
+  const lines = importText.value.split('\n').filter(l => l.trim()).length;
+  importLinecount.textContent = importText.value.trim() ? `${lines} lines` : '';
+  const hasText = !!importText.value.trim();
+  btnScan.disabled = !hasText;
+  btnDoImport.disabled = !hasText;
+  importReport.classList.add('hidden');
+  importError.classList.add('hidden');
+});
+
+document.getElementById('btn-upload').addEventListener('click', () => {
+  document.getElementById('import-file').click();
+});
+
+document.getElementById('import-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  importText.value = await file.text();
+  importText.dispatchEvent(new Event('input'));
+  e.target.value = '';
+});
+
+let lastReport = null;
+
+function runImport(dryRun) {
+  const { entries, invalid, totalLines } = parseList(importText.value);
+  const report = importEntries(entries, 'import', dryRun);
+  report.parsed = entries.length;
+  report.invalid = invalid;
+  report.dryRun = dryRun;
+  lastReport = report;
+
+  renderImportReport(report);
+  importReport.classList.remove('hidden');
+
+  if (!dryRun) {
+    importText.value = '';
+    importText.dispatchEvent(new Event('input'));
+    refreshAll();
+  }
+}
+
+btnScan.addEventListener('click', () => runImport(true));
+btnDoImport.addEventListener('click', () => runImport(false));
+
+function renderImportReport(r) {
+  importReport.innerHTML = `
+    <p class="font-medium text-white">${r.dryRun ? 'Preview – nothing saved yet' : 'Import finished ✔'}</p>
+    <div class="mt-3 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
+      <div class="rounded-lg bg-slate-900 px-2 py-3">
+        <p class="text-2xl font-semibold text-white">${r.parsed}</p>
+        <p class="text-xs text-slate-500">Lines read</p>
+      </div>
+      <div class="rounded-lg bg-slate-900 px-2 py-3">
+        <p class="text-2xl font-semibold text-emerald-300">${r.newPlayers}</p>
+        <p class="text-xs text-slate-500">New players</p>
+      </div>
+      <div class="rounded-lg bg-slate-900 px-2 py-3">
+        <p class="text-2xl font-semibold text-amber-300">${r.renamed.length}</p>
+        <p class="text-xs text-slate-500">Nick changed</p>
+      </div>
+      <div class="rounded-lg bg-slate-900 px-2 py-3">
+        <p class="text-2xl font-semibold text-white">${r.unchanged}</p>
+        <p class="text-xs text-slate-500">Unchanged</p>
+      </div>
+    </div>
+
+    ${r.renamed.length > 0 ? `
+    <div class="mt-4">
+      <p class="text-sm font-medium text-amber-300">Nickname changes detected</p>
+      <ul class="mt-2 max-h-72 space-y-1 overflow-auto text-sm">
+        ${r.renamed.map(x => `
+          <li class="rounded-lg bg-slate-900 px-3 py-1.5 text-slate-300">
+            <span class="font-mono text-indigo-300">${x.gameId}</span>
+            <span class="whitespace-pre-wrap text-slate-500 line-through"> ${escapeHtml(x.oldNick)}</span>
+            <span class="mx-1.5 text-slate-500">→</span>
+            <span class="whitespace-pre-wrap text-white">${escapeHtml(x.newNick)}</span>
+          </li>`).join('')}
+      </ul>
+    </div>` : ''}
+
+    ${r.newSample.length > 0 ? `
+    <details class="mt-4 text-sm text-slate-400">
+      <summary class="cursor-pointer text-emerald-300">New players${r.newPlayers > r.newSample.length ? ` (first ${r.newSample.length})` : ''}</summary>
+      <ul class="mt-2 space-y-1">
+        ${r.newSample.map(n => `<li><span class="font-mono text-indigo-300">${n.gameId}</span> <span class="whitespace-pre-wrap">${escapeHtml(n.nick)}</span></li>`).join('')}
+      </ul>
+    </details>` : ''}
+
+    ${r.invalid.length > 0 ? `
+    <details class="mt-4 text-sm text-slate-400">
+      <summary class="cursor-pointer text-rose-300">${r.invalid.length} line(s) skipped</summary>
+      <ul class="mt-2 space-y-1 font-mono text-xs">
+        ${r.invalid.map(l => `<li>#${l.line}: ${escapeHtml(l.text)}</li>`).join('')}
+      </ul>
+    </details>` : ''}
+
+    ${r.dryRun ? `<button onclick="runImport(false)" class="mt-4 rounded-xl bg-indigo-500 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-400">Looks right – import now</button>` : ''}
+  `;
+}
+
+// ============================================================
+// Backup tab
+// ============================================================
+function updateStorageInfo() {
+  const data = localStorage.getItem(DB_KEY) || '';
+  const bytes = new Blob([data]).size;
+  const count = Object.keys(db.players).length;
+  document.getElementById('storage-info').textContent =
+    `${count} players · ${(bytes / 1024).toFixed(1)} KB used in localStorage`;
+}
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  const data = JSON.stringify(db, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `player-directory-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showBackupMsg('Data exported!', 'text-emerald-400');
+});
+
+document.getElementById('btn-import-backup').addEventListener('click', () => {
+  document.getElementById('import-backup-file').click();
+});
+
+document.getElementById('import-backup-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const imported = JSON.parse(text);
+    if (!imported.players || typeof imported.players !== 'object') throw new Error('Invalid backup file');
+    if (!confirm(`This will replace all current data with ${Object.keys(imported.players).length} players from the backup. Continue?`)) return;
+    db = imported;
+    saveDB(db);
+    refreshAll();
+    updateStorageInfo();
+    showBackupMsg(`Restored ${Object.keys(db.players).length} players from backup.`, 'text-emerald-400');
+  } catch (err) {
+    showBackupMsg('Failed to import: ' + err.message, 'text-rose-400');
+  }
+  e.target.value = '';
+});
+
+document.getElementById('btn-clear-all').addEventListener('click', () => {
+  if (!confirm('Are you sure you want to delete ALL player data? This cannot be undone.')) return;
+  if (!confirm('Really delete everything? Consider exporting a backup first.')) return;
+  db = { players: {} };
+  saveDB(db);
+  refreshAll();
+  updateStorageInfo();
+  showBackupMsg('All data cleared.', 'text-amber-400');
+});
+
+function showBackupMsg(text, cls) {
+  const el = document.getElementById('backup-msg');
+  el.textContent = text;
+  el.className = 'mt-4 text-sm ' + cls;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
+}
+</script>
+
+</body>
+</html>
