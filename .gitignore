@@ -1,0 +1,10 @@
+node_modules/
+.next/
+dist/
+build/
+*.log
+.DS_Store
+.env
+.env.local
+player-nickname-id-tracker/node_modules/
+player-nickname-id-tracker/.next/
