@@ -1,0 +1,26 @@
+  <!-- Баннер для пустой базы -->
+  <div id="seed-banner" class="mb-6 hidden rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-5">
+    <p class="font-medium text-white">База пуста</p>
+    <p class="mt-1 text-sm text-slate-300">
+      Загрузите стартовый список из 1000 игроков, восстановите данные из Google Sheets
+      или вставьте свой список на вкладке «Обновить из списка».
+    </p>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button id="btn-seed" class="btn bg-indigo-500 px-5 py-2 text-white hover:bg-indigo-400">
+        Загрузить стартовый список (1000)
+      </button>
+      <button id="btn-seed-pull" class="btn border border-indigo-400/40 px-5 py-2 text-indigo-200 hover:bg-indigo-500/10">
+        Загрузить из Google Sheets
+      </button>
+    </div>
+    <p id="seed-error" class="mt-2 hidden text-rose-400"></p>
+  </div>
+
+  <!-- Вкладки -->
+  <nav class="mb-5 flex flex-wrap gap-1 rounded-xl bg-slate-900 p-1">
+    <button data-tab="search" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition tab-active">Поиск</button>
+    <button data-tab="add" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Добавить</button>
+    <button data-tab="import" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Из списка</button>
+    <button data-tab="backup" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Бэкап</button>
+    <button data-tab="sync" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Sheets</button>
+  </nav>

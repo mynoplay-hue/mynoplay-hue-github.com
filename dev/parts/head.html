@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Справочник ников игроков</title>
+  <meta name="description" content="Найти текущий ник игрока по ID или ID по части ника. История ников, синхронизация через Google Sheets.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              950: '#020617', 900: '#0f172a', 800: '#1e293b', 700: '#334155',
+              600: '#475569', 500: '#64748b', 400: '#94a3b8', 300: '#cbd5e1',
+              200: '#e2e8f0', 100: '#f1f5f9'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background: #020617; color: #f1f5f9; }
+    .tab-active { background: #6366f1; color: #fff; }
+    .input-field {
+      width: 100%; border-radius: 0.75rem; border: 1px solid #334155; background: #020617;
+      padding: 0.625rem 1rem; color: #fff; outline: none;
+    }
+    .input-field::placeholder { color: #475569; }
+    .input-field:focus { border-color: #818cf8; }
+    .btn { border-radius: 0.75rem; font-weight: 500; transition: background-color .15s, opacity .15s; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    mark { background: rgba(252, 211, 77, .9); color: #0f172a; border-radius: 2px; padding: 0 2px; }
+    .fade-in { animation: fadeIn .2s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    details > summary::before { content: '▸ '; color: #64748b; }
+    details[open] > summary::before { content: '▾ '; }
+    .status-dot { width: .5rem; height: .5rem; border-radius: 9999px; display: inline-block; }
+    .spin { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .report-num { font-variant-numeric: tabular-nums; }
+  </style>
+</head>

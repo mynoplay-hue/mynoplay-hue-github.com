@@ -1,0 +1,145 @@
+  <!-- Вкладка: Синхронизация с Google Sheets -->
+  <div id="tab-sync" class="tab-content hidden">
+    <div class="space-y-4">
+
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-white">Синхронизация с Google Sheets</h2>
+            <p class="mt-1 text-sm text-slate-400">
+              Общая база для всех устройств. Сайт статический, поэтому доступ к таблице идёт
+              через сервис-посредник: он превращает листы Google Sheets в REST API.
+            </p>
+          </div>
+          <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" id="sync-enabled" class="h-4 w-4 accent-indigo-500">
+            Включена
+          </label>
+        </div>
+
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-provider">Сервис</label>
+            <select id="sync-provider" class="input-field">
+              <option value="sheetdb">SheetDB — есть бесплатный тариф (500 запросов/мес)</option>
+              <option value="sheetson">Sheetson — 1000 строк на лист бесплатно</option>
+            </select>
+          </div>
+
+          <div id="field-sheetdb-apiid" class="sm:col-span-2">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-apiid">SheetDB API ID</label>
+            <input id="sync-apiid" type="text" spellcheck="false" placeholder="58f61be4dda40" class="input-field font-mono">
+            <p class="mt-1 text-xs text-slate-500">
+              Из ссылки <span class="font-mono">https://sheetdb.io/api/v1/<b>ВАШ-ID</b></span> в панели SheetDB.
+            </p>
+          </div>
+
+          <div id="field-sheetson-key" class="hidden">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-apikey">Sheetson API key</label>
+            <input id="sync-apikey" type="password" spellcheck="false" autocomplete="off" class="input-field font-mono">
+          </div>
+          <div id="field-sheetson-id" class="hidden">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-spreadsheet">Spreadsheet ID</label>
+            <input id="sync-spreadsheet" type="text" spellcheck="false"
+              placeholder="1YiMOrIFnMaksK032-zv6Sch2tTVTRhEpsFom_5qSLXM" class="input-field font-mono">
+          </div>
+
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-interval">Автосинхронизация при открытии</label>
+            <select id="sync-interval" class="input-field">
+              <option value="0">Выключена</option>
+              <option value="5">Раз в 5 минут</option>
+              <option value="10">Раз в 10 минут</option>
+              <option value="30">Раз в 30 минут</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          <button id="sync-save" class="btn bg-indigo-500 px-5 py-2 text-sm text-white hover:bg-indigo-400">Сохранить настройки</button>
+          <button id="sync-test" class="btn border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Проверить подключение</button>
+          <button id="sync-create-sheets" class="btn border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Создать листы с шапкой</button>
+        </div>
+        <p id="sync-config-msg" class="mt-3 text-sm"></p>
+
+        <div id="sync-check" class="mt-4 hidden rounded-xl border border-slate-700 bg-slate-950 p-4 text-sm"></div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+        <h3 class="text-base font-semibold text-white">Обмен данными</h3>
+        <div class="mt-3 flex flex-wrap gap-3">
+          <button id="sync-pull" class="btn bg-emerald-600 px-5 py-2 text-sm text-white hover:bg-emerald-500">⬇ Загрузить из таблицы</button>
+          <button id="sync-push" class="btn bg-indigo-500 px-5 py-2 text-sm text-white hover:bg-indigo-400">⬆ Отправить изменения</button>
+          <button id="sync-full" class="btn border border-indigo-400/40 px-5 py-2 text-sm text-indigo-200 hover:bg-indigo-500/10">🔄 Полная синхронизация</button>
+          <button id="sync-upload-all" class="btn border border-amber-400/40 px-5 py-2 text-sm text-amber-200 hover:bg-amber-500/10">⬆ Выгрузить всю базу в таблицу</button>
+        </div>
+        <p id="sync-action-msg" class="mt-3 whitespace-pre-line text-sm"></p>
+        <div class="mt-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
+          <p>Последняя загрузка из таблицы: <span id="sync-last-pull" class="text-slate-200">—</span></p>
+          <p>Последняя отправка: <span id="sync-last-push" class="text-slate-200">—</span></p>
+          <p>Запросов в этой сессии: <span id="sync-usage-panel" class="text-slate-200">0</span></p>
+          <p>Провайдер: <span id="sync-provider-label" class="text-slate-200">—</span></p>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+        <h3 class="text-base font-semibold text-white">Как это настроить (5 минут)</h3>
+        <ol class="mt-3 space-y-3 text-sm text-slate-300">
+          <li>
+            <b class="text-white">1. Создайте таблицу.</b>
+            В Google Sheets сделайте два листа с ровно такими названиями и шапкой в первой строке:
+            <div class="mt-2 overflow-x-auto">
+              <table class="w-full min-w-[560px] border-collapse text-xs">
+                <thead class="text-slate-400">
+                  <tr class="border-b border-slate-700">
+                    <th class="py-1 pr-3 text-left font-medium">лист <span class="font-mono text-indigo-300">players</span></th>
+                    <th class="py-1 pr-3 text-left font-medium">лист <span class="font-mono text-indigo-300">nick_history</span></th>
+                  </tr>
+                </thead>
+                <tbody class="font-mono text-slate-400">
+                  <tr><td class="py-0.5 pr-3">game_id</td><td class="py-0.5 pr-3">game_id</td></tr>
+                  <tr><td class="py-0.5 pr-3">current_nick</td><td class="py-0.5 pr-3">nick</td></tr>
+                  <tr><td class="py-0.5 pr-3">level</td><td class="py-0.5 pr-3">source</td></tr>
+                  <tr><td class="py-0.5 pr-3">note</td><td class="py-0.5 pr-3">seen_at</td></tr>
+                  <tr><td class="py-0.5 pr-3">source</td><td class="py-0.5 pr-3">removed</td></tr>
+                  <tr><td class="py-0.5 pr-3">created_at</td><td class="py-0.5 pr-3">removed_at</td></tr>
+                  <tr><td class="py-0.5 pr-3">updated_at</td><td class="py-0.5"></td></tr>
+                  <tr><td class="py-0.5 pr-3">deleted</td><td class="py-0.5"></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <span class="mt-2 block text-xs text-slate-500">
+              Кнопка «Создать листы с шапкой» ниже сделает это сама через API (если сервис разрешает запись).
+            </span>
+          </li>
+          <li>
+            <b class="text-white">2. Подключите таблицу в сервисе.</b>
+            <a class="text-indigo-300 underline" href="https://sheetdb.io" target="_blank" rel="noopener">SheetDB</a>:
+            New API → Google Sheets → вставьте ссылку на таблицу → скопируйте API ID.
+            <a class="ml-1 text-indigo-300 underline" href="https://sheetson.com" target="_blank" rel="noopener">Sheetson</a>:
+            откройте доступ к таблице для <span class="font-mono">google@sheetson.com</span> и возьмите ключ в панели.
+          </li>
+          <li>
+            <b class="text-white">3. Вставьте ключ/ID в поля выше</b>, нажмите «Сохранить настройки» →
+            «Проверить подключение» → «Полная синхронизация».
+          </li>
+          <li>
+            <b class="text-white">4. Повторите шаг 3 на других устройствах</b> — они получат те же данные
+            из таблицы при открытии сайта.
+          </li>
+        </ol>
+        <div class="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          <b>Важно про безопасность:</b> сайт статический, поэтому ключ сервиса хранится в браузере и виден
+          в исходниках страницы. Не публикуйте ссылку на сайт в открытом доступе, если данные приватны,
+          и не используйте здесь личные документы Google. Для полностью закрытой схемы нужен бэкенд
+          (Google Apps Script или OAuth) — скажите, если переключиться на неё.
+        </div>
+        <div class="mt-3 rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-400">
+          <b class="text-slate-200">Лимиты запросов.</b> Бесплатный SheetDB — 500 запросов в месяц,
+          поэтому читаем пачками по 100 строк и отправляем только изменения. При 1000 игроков
+          первая полная загрузка — примерно 10–20 запросов; дальше по 2 запроса на отправку изменений
+          и по несколько на чтение. «Автосинхронизация» по умолчанию — раз в 10 минут и только при открытой странице.
+        </div>
+      </div>
+    </div>
+  </div>

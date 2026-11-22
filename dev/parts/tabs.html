@@ -1,0 +1,110 @@
+  <!-- Вкладка: Поиск -->
+  <div id="tab-search" class="tab-content">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+      <label for="search-input" class="mb-2 block text-sm font-medium text-slate-300">
+        Поиск по ID игрока или части ника
+      </label>
+      <div class="relative">
+        <input id="search-input" type="text" autofocus
+          placeholder="например 7646467  или  Charl  (несколько ID: 7646467, 2720541)"
+          class="input-field pr-10 text-lg">
+        <button id="search-clear" class="absolute right-3 top-1/2 hidden -translate-y-1/2 text-slate-500 hover:text-white">✕</button>
+      </div>
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-400">
+        <label class="flex cursor-pointer items-center gap-2">
+          <input type="checkbox" id="filter-changed" class="h-4 w-4 accent-indigo-500">
+          Только те, кто менял ник
+        </label>
+        <span id="search-status"></span>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">
+        Старые ники тоже ищутся — игрока можно найти по нику, который он использовал раньше.
+      </p>
+    </div>
+    <div id="search-results" class="mt-4 space-y-3"></div>
+  </div>
+
+  <!-- Вкладка: Добавить вручную -->
+  <div id="tab-add" class="tab-content hidden">
+    <form id="add-form" class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+      <h2 class="text-lg font-semibold text-white">Добавить игрока вручную</h2>
+      <p class="mt-1 text-sm text-slate-400">
+        Если ID уже есть, ник добавится в историю и станет текущим.
+      </p>
+      <div class="mt-5 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-sm text-slate-300" for="add-gameid">ID игрока *</label>
+          <input id="add-gameid" type="text" inputmode="numeric" required placeholder="7646467" class="input-field font-mono">
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-slate-300" for="add-nick">Текущий ник *</label>
+          <input id="add-nick" type="text" required placeholder="Bazhena" class="input-field">
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-sm text-slate-300" for="add-older">Прежние ники (необязательно, по одному в строке)</label>
+          <textarea id="add-older" rows="3" placeholder="Старый ник 1&#10;Старый ник 2" class="input-field"></textarea>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-slate-300" for="add-level">Уровень (необязательно)</label>
+          <input id="add-level" type="text" inputmode="numeric" class="input-field">
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-slate-300" for="add-note">Заметка (необязательно)</label>
+          <input id="add-note" type="text" placeholder="Друг, читер…" class="input-field">
+        </div>
+      </div>
+      <div class="mt-5 flex flex-wrap items-center gap-4">
+        <button type="submit" class="btn bg-indigo-500 px-6 py-2.5 text-white hover:bg-indigo-400">Сохранить</button>
+        <p id="add-msg" class="text-sm"></p>
+      </div>
+    </form>
+  </div>
+
+  <!-- Вкладка: Импорт списка -->
+  <div id="tab-import" class="tab-content hidden">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+      <h2 class="text-lg font-semibold text-white">Обновить из нового списка</h2>
+      <p class="mt-1 text-sm text-slate-400">
+        Вставьте новый список (или загрузите .txt). Каждый ID сравнивается с базой: новые ID добавляются,
+        а если у известного ID другой ник — новый ник дописывается в историю и становится текущим,
+        старые ники сохраняются.
+      </p>
+      <p class="mt-2 rounded-lg bg-slate-950 px-3 py-2 font-mono text-xs text-slate-400">
+        1 "Bazhena" 7646467 1566560000 9999
+      </p>
+      <textarea id="import-text" rows="10" spellcheck="false"
+        placeholder='1 "Nick" 7646467 1566560000 9999&#10;2 "Another nick" 2720541 1556036845 7427&#10;…'
+        class="input-field mt-4 font-mono text-sm"></textarea>
+      <div class="mt-3 flex flex-wrap items-center gap-3">
+        <input type="file" id="import-file" accept=".txt,text/plain" class="hidden">
+        <button id="btn-upload" class="btn border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Загрузить .txt</button>
+        <button id="btn-scan" class="btn bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600" disabled>Проверить (без изменений)</button>
+        <button id="btn-do-import" class="btn bg-indigo-500 px-5 py-2 text-sm text-white hover:bg-indigo-400" disabled>Импортировать</button>
+        <span id="import-linecount" class="text-sm text-slate-500"></span>
+      </div>
+      <p id="import-error" class="mt-4 hidden whitespace-pre-line text-rose-400"></p>
+      <div id="import-report" class="mt-5 hidden rounded-xl border border-slate-700 bg-slate-950 p-4"></div>
+    </div>
+  </div>
+
+  <!-- Вкладка: Бэкап -->
+  <div id="tab-backup" class="tab-content hidden">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+      <h2 class="text-lg font-semibold text-white">Экспорт и восстановление</h2>
+      <p class="mt-1 text-sm text-slate-400">
+        Скачайте резервную копию всех данных или восстановите из ранее сохранённого файла.
+        Полные данные хранятся в этом браузере; при включённой синхронизации они дублируются в Google Sheets.
+      </p>
+      <div class="mt-5 flex flex-wrap gap-3">
+        <button id="btn-export" class="btn bg-emerald-600 px-5 py-2.5 text-white hover:bg-emerald-500">📥 Скачать .json</button>
+        <input type="file" id="import-backup-file" accept=".json,application/json" class="hidden">
+        <button id="btn-import-backup" class="btn bg-amber-600 px-5 py-2.5 text-white hover:bg-amber-500">📤 Восстановить из файла</button>
+        <button id="btn-clear-all" class="btn border border-rose-500/40 px-5 py-2.5 text-rose-300 hover:bg-rose-500/10">🗑 Удалить всё</button>
+      </div>
+      <p id="backup-msg" class="mt-4 hidden text-sm"></p>
+      <div class="mt-6 rounded-lg bg-slate-950 p-4">
+        <p class="text-xs text-slate-500">Хранилище</p>
+        <p id="storage-info" class="mt-1 text-sm text-slate-300">Подсчёт…</p>
+      </div>
+    </div>
+  </div>
