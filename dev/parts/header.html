@@ -1,0 +1,25 @@
+  <div id="app" class="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
+  <!-- Шапка -->
+  <header class="mb-5">
+    <p class="text-xs uppercase tracking-[0.2em] text-indigo-300">Справочник игроков</p>
+    <h1 class="mt-1 text-3xl font-bold text-white sm:text-4xl">Кто сменил ник?</h1>
+    <p class="mt-2 text-slate-400">
+      Найдите текущий ник игрока по ID — или ID по любой части ника, прошлого или настоящего.
+      Данные хранятся локально и синхронизируются через Google Sheets.
+    </p>
+  </header>
+
+  <!-- Строка состояния синхронизации -->
+  <div id="sync-bar"
+       class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2 text-xs text-slate-400">
+    <span class="flex items-center gap-2">
+      <span id="sync-dot" class="status-dot bg-slate-600"></span>
+      <span id="sync-status">Проверяю настройки…</span>
+    </span>
+    <span class="flex items-center gap-3">
+      <span id="sync-usage" class="text-slate-500"></span>
+      <button id="btn-sync-now" class="rounded-lg bg-indigo-500/20 px-3 py-1 font-medium text-indigo-200 hover:bg-indigo-500/30 disabled:opacity-40">
+        Синхронизировать
+      </button>
+    </span>
+  </div>

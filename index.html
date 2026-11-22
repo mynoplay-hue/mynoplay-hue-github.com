@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Player Nickname Directory</title>
-  <meta name="description" content="Find a player's current nickname by game ID, or an ID by part of a nickname.">
+  <title>Справочник ников игроков</title>
+  <meta name="description" content="Найти текущий ник игрока по ID или ID по части ника. История ников, синхронизация через Google Sheets.">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -12,16 +12,9 @@
         extend: {
           colors: {
             slate: {
-              950: '#020617',
-              900: '#0f172a',
-              800: '#1e293b',
-              700: '#334155',
-              600: '#475569',
-              500: '#64748b',
-              400: '#94a3b8',
-              300: '#cbd5e1',
-              200: '#e2e8f0',
-              100: '#f1f5f9',
+              950: '#020617', 900: '#0f172a', 800: '#1e293b', 700: '#334155',
+              600: '#475569', 500: '#64748b', 400: '#94a3b8', 300: '#cbd5e1',
+              200: '#e2e8f0', 100: '#f1f5f9'
             }
           }
         }
@@ -30,142 +23,166 @@
   </script>
   <style>
     body { background: #020617; color: #f1f5f9; }
-    .tab-active { background: #6366f1; color: white; }
+    .tab-active { background: #6366f1; color: #fff; }
     .input-field {
-      width: 100%;
-      border-radius: 0.75rem;
-      border: 1px solid #334155;
-      background: #020617;
-      padding: 0.625rem 1rem;
-      color: white;
-      outline: none;
+      width: 100%; border-radius: 0.75rem; border: 1px solid #334155; background: #020617;
+      padding: 0.625rem 1rem; color: #fff; outline: none;
     }
     .input-field::placeholder { color: #475569; }
     .input-field:focus { border-color: #818cf8; }
-    mark { background: rgba(252, 211, 77, 0.9); color: #0f172a; border-radius: 2px; padding: 0 2px; }
-    .fade-in { animation: fadeIn 0.2s ease-out; }
+    .btn { border-radius: 0.75rem; font-weight: 500; transition: background-color .15s, opacity .15s; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    mark { background: rgba(252, 211, 77, .9); color: #0f172a; border-radius: 2px; padding: 0 2px; }
+    .fade-in { animation: fadeIn .2s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    details > summary::before { content: '▸ '; color: #64748b; }
+    details[open] > summary::before { content: '▾ '; }
+    .status-dot { width: .5rem; height: .5rem; border-radius: 9999px; display: inline-block; }
+    .spin { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .report-num { font-variant-numeric: tabular-nums; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 antialiased min-h-screen">
 
-<div id="app" class="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
-  <!-- Header -->
-  <header class="mb-6">
-    <p class="text-xs uppercase tracking-[0.2em] text-indigo-300">Player directory</p>
-    <h1 class="mt-1 text-3xl font-bold text-white sm:text-4xl">Who changed their nickname?</h1>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen">
+  <div id="app" class="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
+  <!-- Шапка -->
+  <header class="mb-5">
+    <p class="text-xs uppercase tracking-[0.2em] text-indigo-300">Справочник игроков</p>
+    <h1 class="mt-1 text-3xl font-bold text-white sm:text-4xl">Кто сменил ник?</h1>
     <p class="mt-2 text-slate-400">
-      Look up a player's current nickname by game ID – or find an ID by any part of a nickname,
-      past or present.
+      Найдите текущий ник игрока по ID — или ID по любой части ника, прошлого или настоящего.
+      Данные хранятся локально и синхронизируются через Google Sheets.
     </p>
   </header>
 
-  <!-- Stats -->
+  <!-- Строка состояния синхронизации -->
+  <div id="sync-bar"
+       class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2 text-xs text-slate-400">
+    <span class="flex items-center gap-2">
+      <span id="sync-dot" class="status-dot bg-slate-600"></span>
+      <span id="sync-status">Проверяю настройки…</span>
+    </span>
+    <span class="flex items-center gap-3">
+      <span id="sync-usage" class="text-slate-500"></span>
+      <button id="btn-sync-now" class="rounded-lg bg-indigo-500/20 px-3 py-1 font-medium text-indigo-200 hover:bg-indigo-500/30 disabled:opacity-40">
+        Синхронизировать
+      </button>
+    </span>
+  </div>
+  <!-- Статистика -->
   <div class="mb-6 grid grid-cols-3 gap-3 text-center">
     <div class="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3">
       <p id="stat-players" class="text-2xl font-semibold text-white">0</p>
-      <p class="text-xs text-slate-500">Players</p>
+      <p class="text-xs text-slate-500">Игроков</p>
     </div>
     <div class="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3">
       <p id="stat-nicknames" class="text-2xl font-semibold text-white">0</p>
-      <p class="text-xs text-slate-500">Nicknames stored</p>
+      <p class="text-xs text-slate-500">Ников в базе</p>
     </div>
     <div class="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3">
       <p id="stat-changed" class="text-2xl font-semibold text-white">0</p>
-      <p class="text-xs text-slate-500">Changed nick</p>
+      <p class="text-xs text-slate-500">Сменили ник</p>
     </div>
   </div>
-
-  <!-- Seed button (shown when empty) -->
+  <!-- Баннер для пустой базы -->
   <div id="seed-banner" class="mb-6 hidden rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-5">
-    <p class="font-medium text-white">The database is empty</p>
+    <p class="font-medium text-white">База пуста</p>
     <p class="mt-1 text-sm text-slate-300">
-      Load the starter list of 1000 players, or paste your own on the "Update from list" tab.
+      Загрузите стартовый список из 1000 игроков, восстановите данные из Google Sheets
+      или вставьте свой список на вкладке «Обновить из списка».
     </p>
-    <button id="btn-seed" class="mt-3 rounded-xl bg-indigo-500 px-5 py-2 font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
-      Load starter list (1000 players)
-    </button>
-    <p id="seed-error" class="mt-2 text-rose-400 hidden"></p>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button id="btn-seed" class="btn bg-indigo-500 px-5 py-2 text-white hover:bg-indigo-400">
+        Загрузить стартовый список (1000)
+      </button>
+      <button id="btn-seed-pull" class="btn border border-indigo-400/40 px-5 py-2 text-indigo-200 hover:bg-indigo-500/10">
+        Загрузить из Google Sheets
+      </button>
+    </div>
+    <p id="seed-error" class="mt-2 hidden text-rose-400"></p>
   </div>
 
-  <!-- Tabs -->
-  <nav class="mb-5 flex gap-1 rounded-xl bg-slate-900 p-1">
-    <button data-tab="search" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition tab-active">Search</button>
-    <button data-tab="add" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Add manually</button>
-    <button data-tab="import" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Update from list</button>
-    <button data-tab="backup" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Backup</button>
+  <!-- Вкладки -->
+  <nav class="mb-5 flex flex-wrap gap-1 rounded-xl bg-slate-900 p-1">
+    <button data-tab="search" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition tab-active">Поиск</button>
+    <button data-tab="add" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Добавить</button>
+    <button data-tab="import" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Из списка</button>
+    <button data-tab="backup" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Бэкап</button>
+    <button data-tab="sync" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition text-slate-400 hover:text-white">Sheets</button>
   </nav>
-
-  <!-- Tab: Search -->
+  <!-- Вкладка: Поиск -->
   <div id="tab-search" class="tab-content">
     <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
       <label for="search-input" class="mb-2 block text-sm font-medium text-slate-300">
-        Search by player ID or part of a nickname
+        Поиск по ID игрока или части ника
       </label>
       <div class="relative">
         <input id="search-input" type="text" autofocus
-          placeholder="e.g. 7646467  or  Charl  (several IDs: 7646467, 2720541)"
-          class="input-field text-lg pr-10">
-        <button id="search-clear" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white hidden">✕</button>
+          placeholder="например 7646467  или  Charl  (несколько ID: 7646467, 2720541)"
+          class="input-field pr-10 text-lg">
+        <button id="search-clear" class="absolute right-3 top-1/2 hidden -translate-y-1/2 text-slate-500 hover:text-white">✕</button>
       </div>
       <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-400">
         <label class="flex cursor-pointer items-center gap-2">
           <input type="checkbox" id="filter-changed" class="h-4 w-4 accent-indigo-500">
-          Only players who changed nickname
+          Только те, кто менял ник
         </label>
         <span id="search-status"></span>
       </div>
       <p class="mt-2 text-xs text-slate-500">
-        Old nicknames are searched too, so you can find a player by a nickname they used before.
+        Старые ники тоже ищутся — игрока можно найти по нику, который он использовал раньше.
       </p>
     </div>
     <div id="search-results" class="mt-4 space-y-3"></div>
   </div>
 
-  <!-- Tab: Add -->
+  <!-- Вкладка: Добавить вручную -->
   <div id="tab-add" class="tab-content hidden">
     <form id="add-form" class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-      <h2 class="text-lg font-semibold text-white">Add a player manually</h2>
+      <h2 class="text-lg font-semibold text-white">Добавить игрока вручную</h2>
       <p class="mt-1 text-sm text-slate-400">
-        If the ID already exists, the nickname is appended to their history and becomes the current one.
+        Если ID уже есть, ник добавится в историю и станет текущим.
       </p>
       <div class="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="mb-1 block text-sm text-slate-300">Player ID *</label>
+          <label class="mb-1 block text-sm text-slate-300" for="add-gameid">ID игрока *</label>
           <input id="add-gameid" type="text" inputmode="numeric" required placeholder="7646467" class="input-field font-mono">
         </div>
         <div>
-          <label class="mb-1 block text-sm text-slate-300">Current nickname *</label>
+          <label class="mb-1 block text-sm text-slate-300" for="add-nick">Текущий ник *</label>
           <input id="add-nick" type="text" required placeholder="Bazhena" class="input-field">
         </div>
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm text-slate-300">Older nicknames (optional, one per line)</label>
-          <textarea id="add-older" rows="3" placeholder="Old nick 1&#10;Old nick 2" class="input-field"></textarea>
+          <label class="mb-1 block text-sm text-slate-300" for="add-older">Прежние ники (необязательно, по одному в строке)</label>
+          <textarea id="add-older" rows="3" placeholder="Старый ник 1&#10;Старый ник 2" class="input-field"></textarea>
         </div>
         <div>
-          <label class="mb-1 block text-sm text-slate-300">Level (optional)</label>
+          <label class="mb-1 block text-sm text-slate-300" for="add-level">Уровень (необязательно)</label>
           <input id="add-level" type="text" inputmode="numeric" class="input-field">
         </div>
         <div>
-          <label class="mb-1 block text-sm text-slate-300">Note (optional)</label>
-          <input id="add-note" type="text" placeholder="Friend, cheater…" class="input-field">
+          <label class="mb-1 block text-sm text-slate-300" for="add-note">Заметка (необязательно)</label>
+          <input id="add-note" type="text" placeholder="Друг, читер…" class="input-field">
         </div>
       </div>
       <div class="mt-5 flex flex-wrap items-center gap-4">
-        <button type="submit" class="rounded-xl bg-indigo-500 px-6 py-2.5 font-medium text-white hover:bg-indigo-400">Save player</button>
+        <button type="submit" class="btn bg-indigo-500 px-6 py-2.5 text-white hover:bg-indigo-400">Сохранить</button>
         <p id="add-msg" class="text-sm"></p>
       </div>
     </form>
   </div>
 
-  <!-- Tab: Import -->
+  <!-- Вкладка: Импорт списка -->
   <div id="tab-import" class="tab-content hidden">
     <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-      <h2 class="text-lg font-semibold text-white">Update from a new list</h2>
+      <h2 class="text-lg font-semibold text-white">Обновить из нового списка</h2>
       <p class="mt-1 text-sm text-slate-400">
-        Paste the new list (or upload a .txt file). Every ID is compared with the database: new IDs are added,
-        and if a known ID now has a different nickname, the new nickname is appended and becomes current –
-        old nicknames are kept.
+        Вставьте новый список (или загрузите .txt). Каждый ID сравнивается с базой: новые ID добавляются,
+        а если у известного ID другой ник — новый ник дописывается в историю и становится текущим,
+        старые ники сохраняются.
       </p>
       <p class="mt-2 rounded-lg bg-slate-950 px-3 py-2 font-mono text-xs text-slate-400">
         1 "Bazhena" 7646467 1566560000 9999
@@ -175,240 +192,690 @@
         class="input-field mt-4 font-mono text-sm"></textarea>
       <div class="mt-3 flex flex-wrap items-center gap-3">
         <input type="file" id="import-file" accept=".txt,text/plain" class="hidden">
-        <button id="btn-upload" class="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Upload .txt</button>
-        <button id="btn-scan" class="rounded-xl bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-600 disabled:opacity-40" disabled>Scan (preview)</button>
-        <button id="btn-do-import" class="rounded-xl bg-indigo-500 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-40" disabled>Import & update</button>
+        <button id="btn-upload" class="btn border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Загрузить .txt</button>
+        <button id="btn-scan" class="btn bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600" disabled>Проверить (без изменений)</button>
+        <button id="btn-do-import" class="btn bg-indigo-500 px-5 py-2 text-sm text-white hover:bg-indigo-400" disabled>Импортировать</button>
         <span id="import-linecount" class="text-sm text-slate-500"></span>
       </div>
-      <p id="import-error" class="mt-4 text-rose-400 hidden"></p>
-      <div id="import-report" class="hidden mt-5 rounded-xl border border-slate-700 bg-slate-950 p-4"></div>
+      <p id="import-error" class="mt-4 hidden whitespace-pre-line text-rose-400"></p>
+      <div id="import-report" class="mt-5 hidden rounded-xl border border-slate-700 bg-slate-950 p-4"></div>
     </div>
   </div>
 
-  <!-- Tab: Backup -->
+  <!-- Вкладка: Бэкап -->
   <div id="tab-backup" class="tab-content hidden">
     <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-      <h2 class="text-lg font-semibold text-white">Export / Import data</h2>
+      <h2 class="text-lg font-semibold text-white">Экспорт и восстановление</h2>
       <p class="mt-1 text-sm text-slate-400">
-        Download a backup of all your data, or restore from a previously saved file.
-        All data is stored in your browser's localStorage.
+        Скачайте резервную копию всех данных или восстановите из ранее сохранённого файла.
+        Полные данные хранятся в этом браузере; при включённой синхронизации они дублируются в Google Sheets.
       </p>
       <div class="mt-5 flex flex-wrap gap-3">
-        <button id="btn-export" class="rounded-xl bg-emerald-600 px-5 py-2.5 font-medium text-white hover:bg-emerald-500">
-          📥 Export data (.json)
-        </button>
+        <button id="btn-export" class="btn bg-emerald-600 px-5 py-2.5 text-white hover:bg-emerald-500">📥 Скачать .json</button>
         <input type="file" id="import-backup-file" accept=".json,application/json" class="hidden">
-        <button id="btn-import-backup" class="rounded-xl bg-amber-600 px-5 py-2.5 font-medium text-white hover:bg-amber-500">
-          📤 Import from backup
-        </button>
-        <button id="btn-clear-all" class="rounded-xl border border-rose-500/40 px-5 py-2.5 font-medium text-rose-300 hover:bg-rose-500/10">
-          🗑 Clear all data
-        </button>
+        <button id="btn-import-backup" class="btn bg-amber-600 px-5 py-2.5 text-white hover:bg-amber-500">📤 Восстановить из файла</button>
+        <button id="btn-clear-all" class="btn border border-rose-500/40 px-5 py-2.5 text-rose-300 hover:bg-rose-500/10">🗑 Удалить всё</button>
       </div>
-      <p id="backup-msg" class="mt-4 text-sm hidden"></p>
+      <p id="backup-msg" class="mt-4 hidden text-sm"></p>
       <div class="mt-6 rounded-lg bg-slate-950 p-4">
-        <p class="text-xs text-slate-500">Storage info</p>
-        <p id="storage-info" class="mt-1 text-sm text-slate-300">Calculating…</p>
+        <p class="text-xs text-slate-500">Хранилище</p>
+        <p id="storage-info" class="mt-1 text-sm text-slate-300">Подсчёт…</p>
       </div>
     </div>
   </div>
-</div>
+  <!-- Вкладка: Синхронизация с Google Sheets -->
+  <div id="tab-sync" class="tab-content hidden">
+    <div class="space-y-4">
+
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-white">Синхронизация с Google Sheets</h2>
+            <p class="mt-1 text-sm text-slate-400">
+              Общая база для всех устройств. Сайт статический, поэтому доступ к таблице идёт
+              через сервис-посредник: он превращает листы Google Sheets в REST API.
+            </p>
+          </div>
+          <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" id="sync-enabled" class="h-4 w-4 accent-indigo-500">
+            Включена
+          </label>
+        </div>
+
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-provider">Сервис</label>
+            <select id="sync-provider" class="input-field">
+              <option value="sheetdb">SheetDB — есть бесплатный тариф (500 запросов/мес)</option>
+              <option value="sheetson">Sheetson — 1000 строк на лист бесплатно</option>
+            </select>
+          </div>
+
+          <div id="field-sheetdb-apiid" class="sm:col-span-2">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-apiid">SheetDB API ID</label>
+            <input id="sync-apiid" type="text" spellcheck="false" placeholder="58f61be4dda40" class="input-field font-mono">
+            <p class="mt-1 text-xs text-slate-500">
+              Из ссылки <span class="font-mono">https://sheetdb.io/api/v1/<b>ВАШ-ID</b></span> в панели SheetDB.
+            </p>
+          </div>
+
+          <div id="field-sheetson-key" class="hidden">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-apikey">Sheetson API key</label>
+            <input id="sync-apikey" type="password" spellcheck="false" autocomplete="off" class="input-field font-mono">
+          </div>
+          <div id="field-sheetson-id" class="hidden">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-spreadsheet">Spreadsheet ID</label>
+            <input id="sync-spreadsheet" type="text" spellcheck="false"
+              placeholder="1YiMOrIFnMaksK032-zv6Sch2tTVTRhEpsFom_5qSLXM" class="input-field font-mono">
+          </div>
+
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-sm text-slate-300" for="sync-interval">Автосинхронизация при открытии</label>
+            <select id="sync-interval" class="input-field">
+              <option value="0">Выключена</option>
+              <option value="5">Раз в 5 минут</option>
+              <option value="10">Раз в 10 минут</option>
+              <option value="30">Раз в 30 минут</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          <button id="sync-save" class="btn bg-indigo-500 px-5 py-2 text-sm text-white hover:bg-indigo-400">Сохранить настройки</button>
+          <button id="sync-test" class="btn border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Проверить подключение</button>
+          <button id="sync-create-sheets" class="btn border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Создать листы с шапкой</button>
+        </div>
+        <p id="sync-config-msg" class="mt-3 text-sm"></p>
+
+        <div id="sync-check" class="mt-4 hidden rounded-xl border border-slate-700 bg-slate-950 p-4 text-sm"></div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+        <h3 class="text-base font-semibold text-white">Обмен данными</h3>
+        <div class="mt-3 flex flex-wrap gap-3">
+          <button id="sync-pull" class="btn bg-emerald-600 px-5 py-2 text-sm text-white hover:bg-emerald-500">⬇ Загрузить из таблицы</button>
+          <button id="sync-push" class="btn bg-indigo-500 px-5 py-2 text-sm text-white hover:bg-indigo-400">⬆ Отправить изменения</button>
+          <button id="sync-full" class="btn border border-indigo-400/40 px-5 py-2 text-sm text-indigo-200 hover:bg-indigo-500/10">🔄 Полная синхронизация</button>
+          <button id="sync-upload-all" class="btn border border-amber-400/40 px-5 py-2 text-sm text-amber-200 hover:bg-amber-500/10">⬆ Выгрузить всю базу в таблицу</button>
+        </div>
+        <p id="sync-action-msg" class="mt-3 whitespace-pre-line text-sm"></p>
+        <div class="mt-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
+          <p>Последняя загрузка из таблицы: <span id="sync-last-pull" class="text-slate-200">—</span></p>
+          <p>Последняя отправка: <span id="sync-last-push" class="text-slate-200">—</span></p>
+          <p>Запросов в этой сессии: <span id="sync-usage-panel" class="text-slate-200">0</span></p>
+          <p>Провайдер: <span id="sync-provider-label" class="text-slate-200">—</span></p>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+        <h3 class="text-base font-semibold text-white">Как это настроить (5 минут)</h3>
+        <ol class="mt-3 space-y-3 text-sm text-slate-300">
+          <li>
+            <b class="text-white">1. Создайте таблицу.</b>
+            В Google Sheets сделайте два листа с ровно такими названиями и шапкой в первой строке:
+            <div class="mt-2 overflow-x-auto">
+              <table class="w-full min-w-[560px] border-collapse text-xs">
+                <thead class="text-slate-400">
+                  <tr class="border-b border-slate-700">
+                    <th class="py-1 pr-3 text-left font-medium">лист <span class="font-mono text-indigo-300">players</span></th>
+                    <th class="py-1 pr-3 text-left font-medium">лист <span class="font-mono text-indigo-300">nick_history</span></th>
+                  </tr>
+                </thead>
+                <tbody class="font-mono text-slate-400">
+                  <tr><td class="py-0.5 pr-3">game_id</td><td class="py-0.5 pr-3">game_id</td></tr>
+                  <tr><td class="py-0.5 pr-3">current_nick</td><td class="py-0.5 pr-3">nick</td></tr>
+                  <tr><td class="py-0.5 pr-3">level</td><td class="py-0.5 pr-3">source</td></tr>
+                  <tr><td class="py-0.5 pr-3">note</td><td class="py-0.5 pr-3">seen_at</td></tr>
+                  <tr><td class="py-0.5 pr-3">source</td><td class="py-0.5 pr-3">removed</td></tr>
+                  <tr><td class="py-0.5 pr-3">created_at</td><td class="py-0.5 pr-3">removed_at</td></tr>
+                  <tr><td class="py-0.5 pr-3">updated_at</td><td class="py-0.5"></td></tr>
+                  <tr><td class="py-0.5 pr-3">deleted</td><td class="py-0.5"></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <span class="mt-2 block text-xs text-slate-500">
+              Кнопка «Создать листы с шапкой» ниже сделает это сама через API (если сервис разрешает запись).
+            </span>
+          </li>
+          <li>
+            <b class="text-white">2. Подключите таблицу в сервисе.</b>
+            <a class="text-indigo-300 underline" href="https://sheetdb.io" target="_blank" rel="noopener">SheetDB</a>:
+            New API → Google Sheets → вставьте ссылку на таблицу → скопируйте API ID.
+            <a class="ml-1 text-indigo-300 underline" href="https://sheetson.com" target="_blank" rel="noopener">Sheetson</a>:
+            откройте доступ к таблице для <span class="font-mono">google@sheetson.com</span> и возьмите ключ в панели.
+          </li>
+          <li>
+            <b class="text-white">3. Вставьте ключ/ID в поля выше</b>, нажмите «Сохранить настройки» →
+            «Проверить подключение» → «Полная синхронизация».
+          </li>
+          <li>
+            <b class="text-white">4. Повторите шаг 3 на других устройствах</b> — они получат те же данные
+            из таблицы при открытии сайта.
+          </li>
+        </ol>
+        <div class="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          <b>Важно про безопасность:</b> сайт статический, поэтому ключ сервиса хранится в браузере и виден
+          в исходниках страницы. Не публикуйте ссылку на сайт в открытом доступе, если данные приватны,
+          и не используйте здесь личные документы Google. Для полностью закрытой схемы нужен бэкенд
+          (Google Apps Script или OAuth) — скажите, если переключиться на неё.
+        </div>
+        <div class="mt-3 rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-400">
+          <b class="text-slate-200">Лимиты запросов.</b> Бесплатный SheetDB — 500 запросов в месяц,
+          поэтому читаем пачками по 100 строк и отправляем только изменения. При 1000 игроков
+          первая полная загрузка — примерно 10–20 запросов; дальше по 2 запроса на отправку изменений
+          и по несколько на чтение. «Автосинхронизация» по умолчанию — раз в 10 минут и только при открытой странице.
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="mt-10 border-t border-slate-800 pt-4 text-xs text-slate-600">
+    <p>
+      Данные хранятся в этом браузере (localStorage) и синхронизируются с Google Sheets при включённой синхронизации.
+      Перед массовыми изменениями сделайте резервную копию на вкладке «Бэкап».
+    </p>
+  </footer>
+  </div>
 
 <script>
-// ============================================================
-// Database layer (localStorage)
-// ============================================================
-const DB_KEY = 'player_directory_db';
+/* ============================================================
+   PlayerDB — локальное хранилище (localStorage) + разбор списков.
+   Работает без сети: сайт полностью функционален офлайн,
+   а синхронизация с Google Sheets (assets/sync.js) — надстройка.
+   ============================================================ */
+(function (global) {
+  "use strict";
 
-function loadDB() {
-  try {
-    const raw = localStorage.getItem(DB_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch(e) { console.error('DB load error', e); }
-  return { players: {} }; // { gameId(str): { gameId, currentNick, level, note, source, createdAt, updatedAt, nicks: [{nick, source, seenAt}] } }
-}
+  const DB_KEY = "player_directory_db";
+  const DB_VERSION = 2;
 
-function saveDB(db) {
-  localStorage.setItem(DB_KEY, JSON.stringify(db));
-}
+  const QUOTE = `["\u201C\u201D\u201E]`;
+  const quotedRe = new RegExp(`^\\s*(?:\\d+\\s+)?${QUOTE}(.*)${QUOTE}\\s+((?:\\d+\\s*)+)$`);
+  const unquotedRe = /^\s*\d+\s+(.+?)\s+(\d+)\s+\d+\s+(\d+)\s*$/;
 
-let db = loadDB();
-
-function getStats() {
-  const players = Object.keys(db.players);
-  let totalNicks = 0;
-  let changed = 0;
-  for (const gid of players) {
-    const p = db.players[gid];
-    totalNicks += p.nicks.length;
-    if (p.nicks.length > 1) changed++;
+  function nowISO() {
+    return new Date().toISOString();
   }
-  return { players: players.length, nicknames: totalNicks, changed };
-}
 
-function updateStats() {
-  const s = getStats();
-  document.getElementById('stat-players').textContent = s.players.toLocaleString('en-US');
-  document.getElementById('stat-nicknames').textContent = s.nicknames.toLocaleString('en-US');
-  document.getElementById('stat-changed').textContent = s.changed.toLocaleString('en-US');
-
-  const banner = document.getElementById('seed-banner');
-  if (s.players === 0) {
-    banner.classList.remove('hidden');
-  } else {
-    banner.classList.add('hidden');
+  function emptyDB() {
+    return { version: DB_VERSION, players: {}, settings: {} };
   }
-}
 
-// ============================================================
-// Parse list (same format as original)
-// ============================================================
-const QUOTE = `["\u201C\u201D\u201E]`;
-const quotedRe = new RegExp(`^\\s*(?:\\d+\\s+)?${QUOTE}(.*)${QUOTE}\\s+((?:\\d+\\s*)+)$`);
-const unquotedRe = /^\s*\d+\s+(.+?)\s+(\d+)\s+\d+\s+(\d+)\s*$/;
+  /* ---------- нормализация / миграция ---------- */
 
-function parseList(text) {
-  const lines = text.replace(/\r/g, '').split('\n');
-  const entries = [];
-  const invalid = [];
-  let totalLines = 0;
+  function normalizeNick(n) {
+    return {
+      nick: String(n.nick),
+      source: n.source || "import",
+      seenAt: n.seenAt || nowISO(),
+      removed: !!n.removed,
+      removedAt: n.removedAt || null,
+    };
+  }
 
-  lines.forEach((raw, index) => {
-    if (!raw.trim()) return;
-    totalLines++;
-    let nick = null, gameId = null, level = null;
+  // Приводит любые сохранённые данные (v1 и v2) к актуальной схеме.
+  function normalizeDB(raw) {
+    const db = emptyDB();
+    if (!raw || typeof raw !== "object") return db;
+    if (raw.settings && typeof raw.settings === "object") db.settings = raw.settings;
 
-    const q = raw.match(quotedRe);
-    if (q) {
-      const nums = q[2].trim().split(/\s+/);
-      nick = q[1];
-      gameId = Number(nums[0]);
-      level = nums.length >= 2 ? Number(nums[nums.length - 1]) : null;
-    } else {
-      const u = raw.match(unquotedRe);
-      if (u) {
-        nick = u[1];
-        gameId = Number(u[2]);
-        level = Number(u[3]);
+    const src = raw.players && typeof raw.players === "object" ? raw.players : {};
+    for (const key of Object.keys(src)) {
+      const p = src[key] || {};
+      const gameId = Number(p.gameId != null ? p.gameId : key);
+      if (!Number.isSafeInteger(gameId) || gameId <= 0) continue;
+
+      const nicks = (Array.isArray(p.nicks) ? p.nicks : [])
+        .filter((n) => n && typeof n.nick === "string" && n.nick !== "")
+        .map(normalizeNick);
+
+      let currentNick = typeof p.currentNick === "string" ? p.currentNick : "";
+      if (!currentNick && nicks.length) currentNick = nicks[nicks.length - 1].nick;
+
+      db.players[String(gameId)] = {
+        gameId,
+        currentNick,
+        level: p.level != null && p.level !== "" ? Number(p.level) : null,
+        note: p.note != null && p.note !== "" ? String(p.note) : null,
+        source: p.source || "import",
+        createdAt: p.createdAt || nowISO(),
+        updatedAt: p.updatedAt || p.createdAt || nowISO(),
+        deleted: !!p.deleted,
+        nicks,
+      };
+    }
+    return db;
+  }
+
+  /* ---------- чтение / запись ---------- */
+
+  function load(storage) {
+    try {
+      const raw = storage.getItem(DB_KEY);
+      if (raw) return normalizeDB(JSON.parse(raw));
+    } catch (e) {
+      console.error("Не удалось прочитать локальные данные", e);
+    }
+    return emptyDB();
+  }
+
+  function save(storage, db) {
+    try {
+      storage.setItem(DB_KEY, JSON.stringify(db));
+      return null;
+    } catch (e) {
+      const msg =
+        e && (e.name === "QuotaExceededError" || e.code === 22)
+          ? "Локальное хранилище переполнено — выгрузите резервную копию."
+          : "Не удалось сохранить данные: " + (e && e.message ? e.message : e);
+      console.error(msg, e);
+      return msg;
+    }
+  }
+
+  /* ---------- выборки ---------- */
+
+  function allPlayers(db) {
+    return Object.values(db.players).filter((p) => !p.deleted);
+  }
+
+  function visibleNicks(p) {
+    return p.nicks.filter((n) => !n.removed);
+  }
+
+  function getStats(db) {
+    let players = 0;
+    let nicknames = 0;
+    let changed = 0;
+    for (const p of allPlayers(db)) {
+      players++;
+      const vis = visibleNicks(p);
+      nicknames += vis.length;
+      if (vis.length > 1) changed++;
+    }
+    return { players, nicknames, changed };
+  }
+
+  /* ---------- разбор списка ---------- */
+
+  // Поддерживаемые форматы строки (все дают ник + id + необязательный уровень):
+  //   1 "Nick" 7646467 1566560000 9999   (ранг, ник, id, очки, уровень)
+  //   "Nick" 7646467 9999                 (ник, id, уровень)
+  //   "Nick" 7646467                      (ник, id)
+  //   1 Nick 7646467 1566560000 9999      (без кавычек)
+  function parseList(text) {
+    const lines = String(text).replace(/\r/g, "").split("\n");
+    const entries = [];
+    const invalid = [];
+    let totalLines = 0;
+
+    lines.forEach((raw, index) => {
+      if (!raw.trim()) return;
+      totalLines++;
+
+      let nick = null;
+      let gameId = null;
+      let level = null;
+
+      const q = raw.match(quotedRe);
+      if (q) {
+        const nums = q[2].trim().split(/\s+/);
+        nick = q[1];
+        gameId = Number(nums[0]);
+        level = nums.length >= 2 ? Number(nums[nums.length - 1]) : null;
+      } else {
+        const u = raw.match(unquotedRe);
+        if (u) {
+          nick = u[1];
+          gameId = Number(u[2]);
+          level = Number(u[3]);
+        }
+      }
+
+      if (
+        nick === null ||
+        nick.trim() === "" ||
+        gameId === null ||
+        !Number.isSafeInteger(gameId) ||
+        gameId <= 0
+      ) {
+        invalid.push({ line: index + 1, text: raw.slice(0, 120) });
+        return;
+      }
+
+      if (level !== null && (!Number.isSafeInteger(level) || level > 2147483647)) level = null;
+      entries.push({ nick, gameId, level });
+    });
+
+    return { entries, invalid, totalLines };
+  }
+
+  /* ---------- импорт: расчёт изменений (dry-run) и применение ---------- */
+
+  // Группирует строки по игроку: порядок ников сохраняется, последний ник — текущий.
+  function groupEntries(entries) {
+    const grouped = new Map();
+    const seenPairs = new Set();
+    let duplicateLines = 0;
+
+    for (const e of entries) {
+      const g = grouped.get(e.gameId) || { gameId: e.gameId, nicks: [], level: null };
+      const pairKey = e.gameId + "\u0000" + e.nick;
+      if (seenPairs.has(pairKey)) {
+        duplicateLines++;
+      } else {
+        seenPairs.add(pairKey);
+        if (g.nicks.includes(e.nick)) {
+          // тот же ник ещё раз — считаем повтором, но порядок не ломаем
+          duplicateLines++;
+        } else {
+          g.nicks.push(e.nick);
+        }
+      }
+      if (e.level !== null) g.level = e.level;
+      grouped.set(e.gameId, g);
+    }
+
+    return { grouped, duplicateLines };
+  }
+
+  /**
+   * Считает, что изменится при импорте. Ничего не пишет в базу.
+   * Возвращает { report, actions } — actions применяет applyImport().
+   */
+  function planImport(db, entries, source, opts) {
+    const dryRun = !!(opts && opts.dryRun);
+    const { grouped, duplicateLines } = groupEntries(entries);
+    const now = nowISO();
+
+    const report = {
+      dryRun,
+      totalLines: (opts && opts.totalLines) || entries.length,
+      invalid: (opts && opts.invalid) || [],
+      parsed: entries.length,
+      uniqueIds: grouped.size,
+      duplicateLines,
+      newPlayers: 0,
+      unchanged: 0,
+      renamed: [],
+      levelUpdated: 0,
+      nicksAdded: 0,
+      newSample: [],
+    };
+
+    const actions = [];
+
+    for (const [gameId, g] of grouped) {
+      const latest = g.nicks[g.nicks.length - 1];
+      if (!latest) continue;
+      const player = db.players[String(gameId)];
+
+      if (!player || player.deleted) {
+        report.newPlayers++;
+        if (report.newSample.length < 20) report.newSample.push({ gameId, nick: latest });
+        report.nicksAdded += g.nicks.length;
+        actions.push({
+          type: player ? "revive" : "create",
+          gameId,
+          nicks: g.nicks,
+          level: g.level,
+          currentNick: latest,
+        });
+        continue;
+      }
+
+      const known = new Map(player.nicks.map((n) => [n.nick, n]));
+      const missing = g.nicks.filter((n) => !known.has(n));
+      const restored = [];
+      for (const n of g.nicks) {
+        const existing = known.get(n);
+        if (existing && existing.removed) restored.push(n);
+      }
+
+      if (missing.length || restored.length) {
+        report.nicksAdded += missing.length + restored.length;
+      }
+
+      if (latest !== player.currentNick) {
+        report.renamed.push({
+          gameId,
+          oldNick: player.currentNick,
+          newNick: latest,
+          nicksAdded: missing.length + restored.length,
+        });
+        actions.push({
+          type: "update",
+          gameId,
+          currentNick: latest,
+          addNicks: missing,
+          restoreNicks: restored,
+          level: g.level,
+        });
+      } else {
+        report.unchanged++;
+        const levelChanged = g.level !== null && g.level !== player.level;
+        if (levelChanged) report.levelUpdated++;
+        if (levelChanged || missing.length || restored.length) {
+          actions.push({
+            type: "update",
+            gameId,
+            currentNick: player.currentNick,
+            addNicks: missing,
+            restoreNicks: restored,
+            level: g.level,
+          });
+        }
       }
     }
 
-    if (nick === null || nick.trim() === '' || gameId === null || !Number.isSafeInteger(gameId) || gameId <= 0) {
-      invalid.push({ line: index + 1, text: raw.slice(0, 120) });
-      return;
-    }
+    // Самопроверка отчёта: новые + изменённые + без изменений должны покрывать все ID.
+    report.balanceOk = report.newPlayers + report.renamed.length + report.unchanged === report.uniqueIds;
 
-    if (level !== null && (!Number.isSafeInteger(level) || level > 2147483647)) level = null;
-    entries.push({ nick, gameId, level });
-  });
-
-  return { entries, invalid, totalLines };
-}
-
-// ============================================================
-// Import / seed logic
-// ============================================================
-function importEntries(entries, source, dryRun) {
-  // Group by gameId, deduplicate nicks within group
-  const grouped = new Map();
-  for (const e of entries) {
-    const g = grouped.get(e.gameId) || { nicks: [], level: null };
-    const i = g.nicks.indexOf(e.nick);
-    if (i >= 0) g.nicks.splice(i, 1);
-    g.nicks.push(e.nick);
-    if (e.level !== null) g.level = e.level;
-    grouped.set(e.gameId, g);
+    return { report, actions };
   }
 
-  const report = { newPlayers: 0, unchanged: 0, renamed: [], newSample: [] };
+  function applyImport(db, actions, source) {
+    const now = nowISO();
+    let touched = 0;
 
-  for (const [gameId, g] of grouped) {
-    const gid = String(gameId);
-    const latest = g.nicks[g.nicks.length - 1];
-    const existing = db.players[gid];
+    for (const a of actions) {
+      const key = String(a.gameId);
+      let player = db.players[key];
 
-    if (!existing) {
-      report.newPlayers++;
-      if (report.newSample.length < 20) report.newSample.push({ gameId, nick: latest });
-      if (!dryRun) {
-        const now = new Date().toISOString();
-        db.players[gid] = {
-          gameId: Number(gid),
-          currentNick: latest,
-          level: g.level,
+      if (!player) {
+        player = {
+          gameId: a.gameId,
+          currentNick: a.currentNick,
+          level: a.level,
           note: null,
           source: source,
           createdAt: now,
           updatedAt: now,
-          nicks: g.nicks.map(nick => ({ nick, source, seenAt: now }))
+          deleted: false,
+          nicks: [],
         };
+        db.players[key] = player;
       }
-      continue;
+
+      player.deleted = false;
+      player.currentNick = a.currentNick;
+      if (a.level !== null && a.level !== undefined) player.level = a.level;
+      else if (player.level === null) player.level = null;
+      player.updatedAt = now;
+      touched++;
+
+      const byNick = new Map(player.nicks.map((n) => [n.nick, n]));
+      // Новый игрок: сразу добавляем все ники из списка (включая текущий).
+      for (const nick of a.nicks || []) {
+        if (!byNick.has(nick)) {
+          const entry = { nick, source, seenAt: now, removed: false, removedAt: null };
+          player.nicks.push(entry);
+          byNick.set(nick, entry);
+        }
+      }
+      for (const nick of a.addNicks || []) {
+        if (!byNick.has(nick)) {
+          const entry = { nick, source, seenAt: now, removed: false, removedAt: null };
+          player.nicks.push(entry);
+          byNick.set(nick, entry);
+        }
+      }
+      for (const nick of a.restoreNicks || []) {
+        const entry = byNick.get(nick);
+        if (entry) {
+          entry.removed = false;
+          entry.removedAt = null;
+          entry.seenAt = now;
+          entry.source = source;
+        }
+      }
     }
 
-    // Existing player – check for new nicks
-    const seenNicks = new Set(existing.nicks.map(n => n.nick));
-    const missing = g.nicks.filter(n => !seenNicks.has(n));
-    const now = new Date().toISOString();
-
-    if (latest !== existing.currentNick) {
-      report.renamed.push({ gameId, oldNick: existing.currentNick, newNick: latest });
-      if (!dryRun) {
-        // Add missing nicks
-        for (const nick of missing) {
-          existing.nicks.push({ nick, source, seenAt: now });
-        }
-        existing.currentNick = latest;
-        if (g.level !== null) existing.level = g.level;
-        existing.updatedAt = now;
-      }
-    } else {
-      report.unchanged++;
-      if (!dryRun) {
-        for (const nick of missing) {
-          existing.nicks.push({ nick, source, seenAt: now });
-        }
-        if (g.level !== null && g.level !== existing.level) {
-          existing.level = g.level;
-          existing.updatedAt = now;
-        }
-      }
-    }
+    return touched;
   }
 
-  if (!dryRun) saveDB(db);
-  return report;
-}
+  /* ---------- ручные операции ---------- */
 
-// ============================================================
-// Search
-// ============================================================
-function searchPlayers(query, opts) {
-  const q = query.trim();
-  let results = [];
-  const allPlayers = Object.values(db.players);
+  function findPlayer(db, gameId) {
+    return db.players[String(gameId)] || null;
+  }
 
-  if (!q) {
-    // Show recently updated
-    results = allPlayers.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 50);
-  } else {
-    // Check if multiple IDs
-    if (/^\d+(?:[\s,;]+\d+)+$/.test(q)) {
-      const ids = q.split(/[\s,;]+/).map(Number).filter(n => Number.isSafeInteger(n));
-      const idSet = new Set(ids.map(String));
-      results = allPlayers.filter(p => idSet.has(String(p.gameId)));
+  function addNick(db, gameId, nick, source) {
+    const p = findPlayer(db, gameId);
+    if (!p) return "Игрок не найден";
+    const clean = String(nick).trim();
+    if (!clean) return "Ник пустой";
+    const now = nowISO();
+    const existing = p.nicks.find((n) => n.nick === clean);
+    if (existing) {
+      existing.removed = false;
+      existing.removedAt = null;
+      existing.seenAt = now;
+    } else {
+      p.nicks.push({ nick: clean, source: source || "manual", seenAt: now, removed: false, removedAt: null });
+    }
+    p.currentNick = clean;
+    p.updatedAt = now;
+    return null;
+  }
+
+  function setCurrent(db, gameId, nick) {
+    const p = findPlayer(db, gameId);
+    if (!p) return "Игрок не найден";
+    const entry = p.nicks.find((n) => n.nick === nick && !n.removed);
+    if (!entry) return "Этого ника нет в истории игрока";
+    p.currentNick = nick;
+    p.updatedAt = nowISO();
+    return null;
+  }
+
+  function removeNick(db, gameId, nick) {
+    const p = findPlayer(db, gameId);
+    if (!p) return "Игрок не найден";
+    const vis = visibleNicks(p);
+    if (vis.length <= 1) return "У игрока должен остаться хотя бы один ник. Удалите игрока целиком.";
+    const entry = p.nicks.find((n) => n.nick === nick && !n.removed);
+    if (!entry) return "Ник не найден";
+
+    const now = nowISO();
+    entry.removed = true;
+    entry.removedAt = now;
+    if (p.currentNick === nick) {
+      const rest = visibleNicks(p);
+      p.currentNick = rest[rest.length - 1].nick;
+    }
+    p.updatedAt = now;
+    return null;
+  }
+
+  function setNote(db, gameId, note) {
+    const p = findPlayer(db, gameId);
+    if (!p) return "Игрок не найден";
+    p.note = String(note || "").trim() || null;
+    p.updatedAt = nowISO();
+    return null;
+  }
+
+  // Удаление — «мягкое» (tombstone), чтобы удаление доехало до других устройств.
+  function deletePlayer(db, gameId) {
+    const p = findPlayer(db, gameId);
+    if (!p) return "Игрок не найден";
+    p.deleted = true;
+    p.updatedAt = nowISO();
+    return null;
+  }
+
+  // Ручное добавление игрока/ника из формы.
+  function addManual(db, input) {
+    const gameId = Number(input.gameId);
+    const nick = String(input.nick || "").trim();
+    const older = (input.olderNicks || []).map((s) => s.trim()).filter(Boolean);
+    const now = nowISO();
+    const key = String(gameId);
+    let player = db.players[key];
+    const created = !player || player.deleted;
+
+    if (!player) {
+      player = {
+        gameId,
+        currentNick: nick,
+        level: input.level != null ? input.level : null,
+        note: input.note || null,
+        source: "manual",
+        createdAt: now,
+        updatedAt: now,
+        deleted: false,
+        nicks: [],
+      };
+      db.players[key] = player;
+    } else {
+      player.deleted = false;
+      player.source = player.source || "manual";
+      player.updatedAt = now;
+      if (input.level != null) player.level = input.level;
+      if (input.note) player.note = input.note;
+      player.currentNick = nick;
+    }
+
+    const push = (n) => {
+      const found = player.nicks.find((x) => x.nick === n);
+      if (found) {
+        found.removed = false;
+        found.removedAt = null;
+        found.seenAt = now;
+        found.source = "manual";
+      } else {
+        player.nicks.push({ nick: n, source: "manual", seenAt: now, removed: false, removedAt: null });
+      }
+    };
+    older.forEach(push);
+    push(nick);
+
+    return { created, player };
+  }
+
+  /* ---------- поиск ---------- */
+
+  function searchPlayers(db, query, opts) {
+    const q = String(query || "").trim();
+    const changedOnly = !!(opts && opts.changedOnly);
+    const limit = (opts && opts.limit) || 100;
+    let results;
+
+    if (!q) {
+      results = allPlayers(db).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    } else if (/^\d+(?:[\s,;]+\d+)+$/.test(q)) {
+      const ids = q.split(/[\s,;]+/).map(Number).filter((n) => Number.isSafeInteger(n));
+      const set = new Set(ids.map(String));
+      results = allPlayers(db).filter((p) => set.has(String(p.gameId)));
+      results.sort((a, b) => ids.indexOf(a.gameId) - ids.indexOf(b.gameId));
     } else {
       const qLower = q.toLowerCase();
-      results = allPlayers.filter(p => {
-        // Match current nick
+      results = allPlayers(db).filter((p) => {
         if (p.currentNick.toLowerCase().includes(qLower)) return true;
-        // Match any historical nick
-        if (p.nicks.some(n => n.nick.toLowerCase().includes(qLower))) return true;
-        // Match ID prefix
+        if (visibleNicks(p).some((n) => n.nick.toLowerCase().includes(qLower))) return true;
         if (/^\d+$/.test(q) && String(p.gameId).startsWith(q)) return true;
         return false;
       });
-      // Sort: exact ID match first, then exact nick match, then alphabetical
       results.sort((a, b) => {
         const aExactId = String(a.gameId) === q ? 0 : 1;
         const bExactId = String(b.gameId) === q ? 0 : 1;
@@ -419,554 +886,1452 @@ function searchPlayers(query, opts) {
         return a.currentNick.localeCompare(b.currentNick);
       });
     }
+
+    if (changedOnly) results = results.filter((p) => visibleNicks(p).length > 1);
+
+    return { total: results.length, results: results.slice(0, limit) };
   }
 
-  if (opts.changedOnly) {
-    results = results.filter(p => p.nicks.length > 1);
+  global.PlayerDB = {
+    DB_KEY,
+    DB_VERSION,
+    emptyDB,
+    normalizeDB,
+    load,
+    save,
+    allPlayers,
+    visibleNicks,
+    getStats,
+    parseList,
+    groupEntries,
+    planImport,
+    applyImport,
+    addManual,
+    addNick,
+    setCurrent,
+    removeNick,
+    setNote,
+    deletePlayer,
+    findPlayer,
+    searchPlayers,
+    nowISO,
+  };
+})(window);
+
+</script>
+<script>
+/* ============================================================
+   PlayerSync — двусторонняя синхронизация с Google Sheets.
+
+   Сайт статический (GitHub Pages), поэтому браузер обращается
+   к таблице через сторонний REST-сервис (SheetDB / Sheetson).
+   Данные всегда живут локально (localStorage): без сети сайт
+   работает, а изменения уходят в таблицу при следующей связи.
+
+   Модель хранения в таблице — append-only (только добавление строк):
+     players       — состояние игрока на момент изменения
+     nick_history  — каждая запись об нике (включая удалённые)
+   При чтении строки сводятся по принципу «побеждает самый свежий
+   updated_at», поэтому конфликты между устройствами разрешаются
+   без потери истории.
+   ============================================================ */
+(function (global) {
+  "use strict";
+
+  const PlayerDB = global.PlayerDB;
+  const CONFIG_KEY = "player_directory_sync";
+  const SHEET_PLAYERS = "players";
+  const SHEET_HISTORY = "nick_history";
+  const CHUNK = 100;
+  const REQUEST_TIMEOUT = 25000;
+
+  /* ---------- конфигурация ---------- */
+
+  const DEFAULT_CONFIG = {
+    enabled: false,
+    provider: "sheetdb",
+    apiId: "",        // SheetDB: API ID
+    apiKey: "",       // Sheetson: API key
+    spreadsheetId: "", // Sheetson: ID таблицы
+    autoPullMinutes: 10,
+    lastPullAt: null,
+    lastPushAt: null,
+  };
+
+  function loadConfig(storage) {
+    try {
+      const raw = storage.getItem(CONFIG_KEY);
+      if (raw) return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+    } catch (e) {
+      console.error("Не удалось прочитать настройки синхронизации", e);
+    }
+    return { ...DEFAULT_CONFIG };
   }
 
-  return { total: results.length, results: results.slice(0, 100) };
-}
-
-// ============================================================
-// UI Helpers
-// ============================================================
-function highlight(text, query) {
-  const q = query.trim();
-  if (!q) return escapeHtml(text);
-  const i = text.toLowerCase().indexOf(q.toLowerCase());
-  if (i < 0) return escapeHtml(text);
-  return escapeHtml(text.slice(0, i)) +
-    '<mark>' + escapeHtml(text.slice(i, i + q.length)) + '</mark>' +
-    escapeHtml(text.slice(i + q.length));
-}
-
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleDateString();
-}
-
-// ============================================================
-// Render search results
-// ============================================================
-let currentQuery = '';
-
-function renderResults(query) {
-  currentQuery = query;
-  const changedOnly = document.getElementById('filter-changed').checked;
-  const { total, results } = searchPlayers(query, { changedOnly });
-  const container = document.getElementById('search-results');
-  const status = document.getElementById('search-status');
-
-  if (!query) {
-    status.textContent = `Recently updated · showing ${results.length} of ${total}`;
-  } else {
-    status.textContent = total === 0 ? 'No matches' :
-      `${total} match${total === 1 ? '' : 'es'}${total > results.length ? ` (showing ${results.length})` : ''}`;
+  function saveConfig(storage, cfg) {
+    storage.setItem(CONFIG_KEY, JSON.stringify({ ...DEFAULT_CONFIG, ...cfg }));
   }
 
-  if (results.length === 0) {
-    container.innerHTML = `<div class="rounded-2xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
-      Nothing found. If this player is new, add them on the "Add manually" tab.
-    </div>`;
-    return;
+  /* ---------- провайдеры ---------- */
+
+  function sheetsonHeaders(cfg) {
+    if (!cfg.apiKey) throw new Error("Не указан API-ключ Sheetson");
+    if (!cfg.spreadsheetId) throw new Error("Не указан Spreadsheet ID");
+    return {
+      Authorization: `Bearer ${cfg.apiKey}`,
+      "X-Spreadsheet-Id": cfg.spreadsheetId,
+      "Content-Type": "application/json",
+    };
   }
 
-  container.innerHTML = results.map(p => renderPlayerCard(p, query)).join('');
-}
-
-function renderPlayerCard(p, query) {
-  const previous = p.nicks.filter(n => n.nick !== p.currentNick);
-  const isManual = p.source === 'manual';
-  const hasChanged = previous.length > 0;
-
-  return `
-  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-lg shadow-black/20 fade-in" data-gameid="${p.gameId}">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div class="min-w-0">
-        <p class="text-xs uppercase tracking-wider text-slate-500">Current nickname</p>
-        <h3 class="mt-0.5 break-all text-xl font-semibold text-white whitespace-pre-wrap">
-          ${highlight(p.currentNick, query)}
-        </h3>
-      </div>
-      <div class="text-right">
-        <p class="text-xs uppercase tracking-wider text-slate-500">Player ID</p>
-        <button onclick="copyId(${p.gameId}, this)" title="Copy ID"
-          class="mt-0.5 rounded-lg bg-indigo-500/15 px-2.5 py-1 font-mono text-lg font-semibold text-indigo-300 transition hover:bg-indigo-500/25">
-          ${p.gameId}<span class="ml-2 text-xs font-normal text-indigo-200/70">copy</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-      ${p.level !== null ? `<span class="rounded-full bg-slate-800 px-2.5 py-1 text-slate-300">Level ${p.level}</span>` : ''}
-      <span class="rounded-full bg-slate-800 px-2.5 py-1 text-slate-300">${p.nicks.length} nickname${p.nicks.length === 1 ? '' : 's'}</span>
-      ${isManual ? '<span class="rounded-full bg-emerald-500/15 px-2.5 py-1 text-emerald-300">added manually</span>' : ''}
-      ${hasChanged ? '<span class="rounded-full bg-amber-500/15 px-2.5 py-1 text-amber-300">nickname changed</span>' : ''}
-    </div>
-
-    ${previous.length > 0 ? `
-    <div class="mt-3">
-      <p class="text-xs uppercase tracking-wider text-slate-500">Previous nicknames</p>
-      <div class="mt-1.5 flex flex-wrap gap-1.5">
-        ${previous.map(n => `<span class="whitespace-pre-wrap break-all rounded-lg border border-slate-700 bg-slate-800/60 px-2 py-1 text-sm text-slate-300">${highlight(n.nick, query)}</span>`).join('')}
-      </div>
-    </div>` : ''}
-
-    ${p.note ? `<p class="mt-3 text-sm italic text-slate-400">"${escapeHtml(p.note)}"</p>` : ''}
-
-    <button onclick="toggleDetails(this)" class="mt-3 text-sm text-slate-400 underline-offset-4 hover:text-white hover:underline">
-      Manage / history
-    </button>
-
-    <div class="player-details hidden mt-3 space-y-4 border-t border-slate-800 pt-4">
-      <div>
-        <p class="mb-2 text-xs uppercase tracking-wider text-slate-500">Nickname history (oldest first)</p>
-        <ul class="space-y-1.5">
-          ${p.nicks.map(n => {
-            const isCurrent = n.nick === p.currentNick;
-            return `
-            <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/50 px-3 py-2">
-              <div class="min-w-0">
-                <span class="whitespace-pre-wrap break-all text-sm text-slate-100">${escapeHtml(n.nick)}</span>
-                ${isCurrent ? '<span class="ml-2 rounded bg-indigo-500/20 px-1.5 py-0.5 text-xs text-indigo-300">current</span>' : ''}
-                <span class="ml-2 text-xs text-slate-500">${n.source} · ${formatDate(n.seenAt)}</span>
-              </div>
-              <div class="flex gap-3 text-xs">
-                ${!isCurrent ? `<button onclick="setCurrent(${p.gameId}, '${escapeJs(n.nick)}')" class="text-indigo-300 hover:underline">make current</button>` : ''}
-                ${p.nicks.length > 1 ? `<button onclick="removeNick(${p.gameId}, '${escapeJs(n.nick)}')" class="text-rose-400 hover:underline">remove</button>` : ''}
-              </div>
-            </li>`;
-          }).join('')}
-        </ul>
-      </div>
-
-      <form onsubmit="event.preventDefault(); addNick(${p.gameId}, this);" class="flex flex-wrap gap-2">
-        <input type="text" name="newnick" placeholder="New nickname (becomes current)"
-          class="input-field min-w-0 flex-1 text-sm py-2">
-        <button type="submit" class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400">
-          Add nickname
-        </button>
-      </form>
-
-      <form onsubmit="event.preventDefault(); setNote(${p.gameId}, this);" class="flex flex-wrap gap-2">
-        <input type="text" name="note" value="${escapeHtml(p.note || '')}" placeholder="Note about this player (optional)"
-          class="input-field min-w-0 flex-1 text-sm py-2">
-        <button type="submit" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-600">
-          Save note
-        </button>
-      </form>
-
-      <div class="flex items-center justify-between">
-        <p class="player-error text-sm text-rose-400"></p>
-        <button onclick="deletePlayer(${p.gameId})"
-          class="rounded-lg border border-rose-500/40 px-3 py-1.5 text-sm text-rose-300 hover:bg-rose-500/10">
-          Delete player
-        </button>
-      </div>
-    </div>
-  </article>`;
-}
-
-function escapeJs(s) {
-  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
-}
-
-// ============================================================
-// Actions
-// ============================================================
-function copyId(gameId, btn) {
-  navigator.clipboard.writeText(String(gameId)).then(() => {
-    const span = btn.querySelector('span');
-    if (span) { span.textContent = 'copied'; setTimeout(() => span.textContent = 'copy', 1200); }
-  });
-}
-
-function toggleDetails(btn) {
-  const details = btn.nextElementSibling;
-  if (details.classList.contains('hidden')) {
-    details.classList.remove('hidden');
-    btn.textContent = 'Hide details';
-  } else {
-    details.classList.add('hidden');
-    btn.textContent = 'Manage / history';
+  function timeoutSignal(ms) {
+    if (typeof AbortController === "undefined") return {};
+    const c = new AbortController();
+    setTimeout(() => c.abort(), ms);
+    return { signal: c.signal };
   }
-}
 
-function setCurrent(gameId, nick) {
-  const p = db.players[String(gameId)];
-  if (!p) return;
-  p.currentNick = nick;
-  p.updatedAt = new Date().toISOString();
-  saveDB(db);
-  refreshAll();
-}
-
-function removeNick(gameId, nick) {
-  const p = db.players[String(gameId)];
-  if (!p) return;
-  if (p.nicks.length <= 1) return alert('A player must keep at least one nickname. Delete the player instead.');
-  p.nicks = p.nicks.filter(n => n.nick !== nick);
-  if (p.currentNick === nick) {
-    p.currentNick = p.nicks[p.nicks.length - 1].nick;
+  async function request(url, init) {
+    let res;
+    try {
+      res = await fetch(url, { ...init, ...timeoutSignal(REQUEST_TIMEOUT) });
+    } catch (e) {
+      if (e && e.name === "AbortError") throw new Error("Сервис не ответил за 25 секунд");
+      throw new Error(
+        "Нет связи с сервисом. Проверьте интернет, правильность API ID и то, что таблица доступна (CORS).",
+      );
+    }
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (!res.ok) {
+      const msg =
+        (data && (data.error || data.message)) ||
+        `Сервис вернул ошибку ${res.status}. Проверьте API ID и названия листов.`;
+      throw new Error(msg);
+    }
+    if (data && data.error) throw new Error(String(data.error));
+    return data;
   }
-  p.updatedAt = new Date().toISOString();
-  saveDB(db);
-  refreshAll();
-}
 
-function addNick(gameId, form) {
-  const input = form.querySelector('input[name="newnick"]');
-  const nick = input.value.trim();
-  if (!nick) return;
-  const p = db.players[String(gameId)];
-  if (!p) return;
-  p.nicks.push({ nick, source: 'manual', seenAt: new Date().toISOString() });
-  p.currentNick = nick;
-  p.updatedAt = new Date().toISOString();
-  saveDB(db);
-  refreshAll();
-}
-
-function setNote(gameId, form) {
-  const input = form.querySelector('input[name="note"]');
-  const p = db.players[String(gameId)];
-  if (!p) return;
-  p.note = input.value.trim() || null;
-  p.updatedAt = new Date().toISOString();
-  saveDB(db);
-  refreshAll();
-}
-
-function deletePlayer(gameId) {
-  const p = db.players[String(gameId)];
-  if (!p) return;
-  if (!confirm(`Delete player ${gameId} (${p.currentNick}) and all nicknames?`)) return;
-  delete db.players[String(gameId)];
-  saveDB(db);
-  refreshAll();
-}
-
-function refreshAll() {
-  updateStats();
-  const q = document.getElementById('search-input').value;
-  renderResults(q);
-}
-
-// ============================================================
-// Tab switching
-// ============================================================
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => {
-      b.classList.remove('tab-active');
-      b.classList.add('text-slate-400');
-    });
-    btn.classList.add('tab-active');
-    btn.classList.remove('text-slate-400');
-
-    const tabId = btn.dataset.tab;
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-    document.getElementById('tab-' + tabId).classList.remove('hidden');
-
-    if (tabId === 'backup') updateStorageInfo();
-  });
-});
-
-// ============================================================
-// Search
-// ============================================================
-let searchTimeout;
-const searchInput = document.getElementById('search-input');
-const searchClear = document.getElementById('search-clear');
-
-searchInput.addEventListener('input', () => {
-  const q = searchInput.value;
-  searchClear.classList.toggle('hidden', !q);
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => renderResults(q), 200);
-});
-
-searchClear.addEventListener('click', () => {
-  searchInput.value = '';
-  searchClear.classList.add('hidden');
-  renderResults('');
-});
-
-document.getElementById('filter-changed').addEventListener('change', () => {
-  renderResults(searchInput.value);
-});
-
-// Initial render
-renderResults('');
-updateStats();
-
-// ============================================================
-// Seed
-// ============================================================
-document.getElementById('btn-seed').addEventListener('click', async () => {
-  const btn = document.getElementById('btn-seed');
-  const err = document.getElementById('seed-error');
-  btn.disabled = true;
-  btn.textContent = 'Loading…';
-  err.classList.add('hidden');
-
-  try {
-    const resp = await fetch('data/initial-players.txt');
-    if (!resp.ok) throw new Error('Could not load starter list');
-    const text = await resp.text();
-    const { entries } = parseList(text);
-    importEntries(entries, 'seed', false);
-    refreshAll();
-  } catch (e) {
-    err.textContent = e.message;
-    err.classList.remove('hidden');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Load starter list (1000 players)';
+  function sheetDbUrl(cfg) {
+    const id = String(cfg.apiId || "").trim();
+    if (!id) throw new Error("Не указан API ID SheetDB");
+    return `https://sheetdb.io/api/v1/${encodeURIComponent(id)}`;
   }
-});
 
-// ============================================================
-// Add form
-// ============================================================
-document.getElementById('add-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const gameId = Number(document.getElementById('add-gameid').value);
-  const nick = document.getElementById('add-nick').value.trim();
-  const older = document.getElementById('add-older').value.split('\n').map(s => s.trim()).filter(Boolean);
-  const levelVal = document.getElementById('add-level').value;
-  const level = levelVal ? Number(levelVal) : null;
-  const note = document.getElementById('add-note').value.trim() || null;
-  const msg = document.getElementById('add-msg');
+  const PROVIDERS = {
+    sheetdb: {
+      label: "SheetDB",
+      docs: "https://sheetdb.io",
+      configFields: ["apiId"],
+      async list(cfg, sheet, { limit, offset }) {
+        const url =
+          `${sheetDbUrl(cfg)}?sheet=${encodeURIComponent(sheet)}` +
+          `&limit=${limit}&offset=${offset}&_=${Date.now()}`;
+        const data = await request(url, { method: "GET" });
+        return Array.isArray(data) ? data : Array.isArray(data && data.results) ? data.results : [];
+      },
+      // Небольшая пауза: сервис сбрасывает кэш чтения с задержкой,
+      // иначе сразу после записи можно прочитать устаревшие строки.
+      defer: () => new Promise((r) => setTimeout(r, 400)),
+      async append(cfg, sheet, rows) {
+        // mode=RAW: значения пишутся как текст и не вычисляются как формулы.
+        await request(`${sheetDbUrl(cfg)}?mode=RAW`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sheet, data: rows }),
+        });
+        return rows.length;
+      },
+    },
 
-  const gid = String(gameId);
-  const existing = db.players[gid];
+    sheetson: {
+      label: "Sheetson",
+      docs: "https://docs.sheetson.com",
+      configFields: ["apiKey", "spreadsheetId"],
+      async list(cfg, sheet, { limit, offset }) {
+        const url =
+          `https://api.sheetson.com/v2/sheets/${encodeURIComponent(sheet)}` +
+          `?limit=${Math.min(limit, 100)}&skip=${offset}`;
+        const data = await request(url, { headers: sheetsonHeaders(cfg) });
+        return Array.isArray(data) ? data : Array.isArray(data && data.results) ? data.results : [];
+      },
+      defer: () => new Promise((r) => setTimeout(r, 250)),
+      async append(cfg, sheet, rows) {
+        // Sheetson пишет по одной строке за запрос — учитывайте лимит запросов.
+        for (const row of rows) {
+          await request(`https://api.sheetson.com/v2/sheets/${encodeURIComponent(sheet)}`, {
+            method: "POST",
+            headers: sheetsonHeaders(cfg),
+            body: JSON.stringify(row),
+          });
+        }
+        return rows.length;
+      },
+    },
+  };
 
-  if (existing) {
-    // Update existing
-    const now = new Date().toISOString();
-    existing.nicks.push({ nick, source: 'manual', seenAt: now });
-    for (const onick of older) {
-      if (!existing.nicks.some(n => n.nick === onick)) {
-        existing.nicks.push({ nick: onick, source: 'manual', seenAt: now });
+  function provider(cfg) {
+    const p = PROVIDERS[cfg.provider];
+    if (!p) throw new Error(`Неизвестный сервис: ${cfg.provider}`);
+    return p;
+  }
+
+  /* ---------- счётчик запросов за сеанс ---------- */
+
+  const usage = { requests: 0, rowsPushed: 0, rowsPulled: 0 };
+
+  async function counted(fn, ...args) {
+    usage.requests++;
+    return fn.apply(this, args);
+  }
+
+  /* ---------- сериализация строк ---------- */
+
+  const ts = (v) => (v ? String(v) : "");
+  const bool = (v) => (v === true || v === 1 || v === "1" || v === "true" || v === "TRUE" ? "1" : "0");
+  // В таблице значения хранятся как "1"/"0", поэтому сравниваем явно, а не через truthiness.
+  const isTrue = (v) => v === true || v === 1 || v === "1" || String(v).toLowerCase() === "true";
+
+  function playerRow(p) {
+    return {
+      game_id: String(p.gameId),
+      current_nick: p.currentNick,
+      level: p.level == null ? "" : String(p.level),
+      note: p.note == null ? "" : p.note,
+      source: p.source || "",
+      created_at: ts(p.createdAt),
+      updated_at: ts(p.updatedAt),
+      deleted: bool(p.deleted),
+    };
+  }
+
+  function nickRow(gameId, n) {
+    return {
+      game_id: String(gameId),
+      nick: n.nick,
+      source: n.source || "",
+      seen_at: ts(n.seenAt),
+      removed: bool(n.removed),
+      removed_at: ts(n.removedAt),
+    };
+  }
+
+  function rowTime(row, ...fields) {
+    let best = 0;
+    for (const f of fields) {
+      const v = row[f];
+      if (!v) continue;
+      const t = new Date(v).getTime();
+      if (Number.isFinite(t) && t > best) best = t;
+    }
+    return best;
+  }
+
+  /* ---------- сбор изменений для отправки ---------- */
+
+  function collectChanges(db, sinceISO) {
+    const since = sinceISO ? new Date(sinceISO).getTime() : 0;
+    const players = [];
+    const history = [];
+
+    // Важно: удалённые игроки тоже нужны — иначе удаление не доедет до других устройств.
+    for (const p of Object.values(db.players)) {
+      if (new Date(p.updatedAt).getTime() > since) players.push(playerRow(p));
+      for (const n of p.nicks) {
+        const t = Math.max(
+          new Date(n.seenAt || 0).getTime() || 0,
+          new Date(n.removedAt || 0).getTime() || 0,
+        );
+        if (t > since) history.push(nickRow(p.gameId, n));
       }
     }
-    existing.currentNick = nick;
-    if (level !== null) existing.level = level;
-    if (note) existing.note = note;
-    existing.updatedAt = now;
-    saveDB(db);
-    msg.textContent = `Player ${gameId} already existed – the nickname was added to their history and is now current.`;
-    msg.className = 'text-sm text-emerald-400';
-  } else {
-    // Create new
-    const now = new Date().toISOString();
-    const allNicks = [...older, nick];
-    db.players[gid] = {
-      gameId,
-      currentNick: nick,
-      level,
-      note,
-      source: 'manual',
-      createdAt: now,
-      updatedAt: now,
-      nicks: allNicks.map(n => ({ nick: n, source: 'manual', seenAt: now }))
+    return { players, history };
+  }
+
+  /* ---------- чтение всей таблицы ---------- */
+
+  async function fetchAll(prov, cfg, sheet, onProgress) {
+    const out = [];
+    let offset = 0;
+    let guard = 0;
+    // Sheetson отдаёт не больше 100 строк за запрос, SheetDB — тоже 100 по умолчанию.
+    const limit = 100;
+
+    while (guard++ < 500) {
+      const rows = await counted(prov.list, cfg, sheet, { limit, offset });
+      if (!Array.isArray(rows) || rows.length === 0) break;
+      out.push(...rows);
+      usage.rowsPulled += rows.length;
+      if (onProgress) onProgress({ sheet, loaded: out.length });
+      if (rows.length < limit) {
+        // сервис мог урезать страницу (например, до 100) — продолжаем, если вернул ровно свою границу
+        if (rows.length < Math.min(limit, 100)) break;
+        offset += rows.length;
+        if (rows.length < limit) continue;
+      } else {
+        offset += rows.length;
+      }
+      // защита от бесконечного цикла, если сервис игнорирует offset
+      if (offset > 200000) break;
+    }
+    return out;
+  }
+
+  /* ---------- слияние ---------- */
+
+  function mergeSnapshot(db, playerRows, nickRows) {
+    const result = {
+      playersPulled: 0,
+      playersCreated: 0,
+      playersUpdated: 0,
+      nicksPulled: 0,
+      nicksAdded: 0,
+      localNewer: 0,
     };
-    saveDB(db);
-    msg.textContent = `Player ${gameId} added.`;
-    msg.className = 'text-sm text-emerald-400';
+
+    // 1. Игроки: оставляем самую свежую версию по updated_at
+    const remotePlayers = new Map();
+    for (const row of playerRows) {
+      const id = Number(row.game_id);
+      if (!Number.isSafeInteger(id) || id <= 0) continue;
+      const prev = remotePlayers.get(id);
+      if (!prev || rowTime(row, "updated_at") >= rowTime(prev, "updated_at")) remotePlayers.set(id, row);
+    }
+    result.playersPulled = remotePlayers.size;
+
+    for (const [gameId, row] of remotePlayers) {
+      const key = String(gameId);
+      const local = db.players[key];
+      const remoteAt = rowTime(row, "updated_at");
+      const localAt = local ? new Date(local.updatedAt).getTime() || 0 : -1;
+
+      if (!local) {
+        db.players[key] = {
+          gameId,
+          currentNick: String(row.current_nick || ""),
+          level: row.level === "" || row.level == null ? null : Number(row.level),
+          note: row.note ? String(row.note) : null,
+          source: row.source || "import",
+          createdAt: row.created_at || row.updated_at || PlayerDB.nowISO(),
+          updatedAt: row.updated_at || PlayerDB.nowISO(),
+          deleted: isTrue(row.deleted),
+          nicks: [],
+        };
+        result.playersCreated++;
+      } else if (remoteAt > localAt) {
+        local.currentNick = String(row.current_nick || local.currentNick);
+        local.level = row.level === "" || row.level == null ? null : Number(row.level);
+        local.note = row.note ? String(row.note) : null;
+        if (row.source) local.source = row.source;
+        local.deleted = isTrue(row.deleted);
+        local.updatedAt = row.updated_at || local.updatedAt;
+        result.playersUpdated++;
+      } else if (localAt > remoteAt) {
+        result.localNewer++;
+      }
+    }
+
+    // 2. История ников: ключ (gameId, nick), побеждает более свежее событие
+    const remoteNicks = new Map();
+    for (const row of nickRows) {
+      const id = Number(row.game_id);
+      const nick = row.nick;
+      if (!Number.isSafeInteger(id) || id <= 0 || !nick) continue;
+      const key = id + "\u0000" + nick;
+      const prev = remoteNicks.get(key);
+      if (!prev || rowTime(row, "seen_at", "removed_at") >= rowTime(prev, "seen_at", "removed_at")) {
+        remoteNicks.set(key, row);
+      }
+    }
+    result.nicksPulled = remoteNicks.size;
+
+    for (const row of remoteNicks.values()) {
+      const gameId = Number(row.game_id);
+      const player = db.players[String(gameId)];
+      if (!player) continue; // ники без игрока игнорируем: игрок придёт отдельной строкой
+
+      const nick = String(row.nick);
+      const remoteAt = rowTime(row, "seen_at", "removed_at");
+      const existing = player.nicks.find((n) => n.nick === nick);
+      const localAt = existing
+        ? Math.max(
+            new Date(existing.seenAt || 0).getTime() || 0,
+            new Date(existing.removedAt || 0).getTime() || 0,
+          )
+        : -1;
+
+      if (!existing) {
+        player.nicks.push({
+          nick,
+          source: row.source || "import",
+          seenAt: row.seen_at || PlayerDB.nowISO(),
+          removed: isTrue(row.removed),
+          removedAt: row.removed_at || null,
+        });
+        result.nicksAdded++;
+      } else if (remoteAt > localAt) {
+        existing.source = row.source || existing.source;
+        existing.seenAt = row.seen_at || existing.seenAt;
+        existing.removed = isTrue(row.removed);
+        existing.removedAt = row.removed_at || null;
+        result.nicksAdded++;
+      }
+    }
+
+    return result;
   }
 
-  // Clear form
-  document.getElementById('add-gameid').value = '';
-  document.getElementById('add-nick').value = '';
-  document.getElementById('add-older').value = '';
-  document.getElementById('add-level').value = '';
-  document.getElementById('add-note').value = '';
+  /* ---------- операции ---------- */
 
-  updateStats();
-  renderResults(searchInput.value);
-});
+  async function check(storage, cfg) {
+    const prov = provider(cfg);
+    const report = { provider: prov.label, sheets: {}, ok: true, errors: [] };
 
-// ============================================================
-// Import tab
-// ============================================================
-const importText = document.getElementById('import-text');
-const btnScan = document.getElementById('btn-scan');
-const btnDoImport = document.getElementById('btn-do-import');
-const importLinecount = document.getElementById('import-linecount');
-const importError = document.getElementById('import-error');
-const importReport = document.getElementById('import-report');
+    for (const sheet of [SHEET_PLAYERS, SHEET_HISTORY]) {
+      try {
+        const rows = await counted(prov.list, cfg, sheet, { limit: 5, offset: 0 });
+        const keys = rows.length ? Object.keys(rows[0]).filter((k) => k !== "rowIndex") : [];
+        report.sheets[sheet] = { ok: true, rowsSample: rows.length, columns: keys };
+      } catch (e) {
+        report.ok = false;
+        report.errors.push(`${sheet}: ${e.message}`);
+        report.sheets[sheet] = { ok: false, rowsSample: 0, columns: [], error: e.message };
+      }
+    }
+    return report;
+  }
 
-importText.addEventListener('input', () => {
-  const lines = importText.value.split('\n').filter(l => l.trim()).length;
-  importLinecount.textContent = importText.value.trim() ? `${lines} lines` : '';
-  const hasText = !!importText.value.trim();
-  btnScan.disabled = !hasText;
-  btnDoImport.disabled = !hasText;
-  importReport.classList.add('hidden');
-  importError.classList.add('hidden');
-});
+  async function push(storage, db, cfg, opts) {
+    const prov = provider(cfg);
+    const full = !!(opts && opts.full);
+    // opts.rows — заранее снятый снимок изменений (используется в sync()).
+    const { players, history } =
+      (opts && opts.rows) || collectChanges(db, full ? null : cfg.lastPushAt);
 
-document.getElementById('btn-upload').addEventListener('click', () => {
-  document.getElementById('import-file').click();
-});
+    if (!players.length && !history.length) {
+      return { skipped: true, playersPushed: 0, nicksPushed: 0 };
+    }
 
-document.getElementById('import-file').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  importText.value = await file.text();
-  importText.dispatchEvent(new Event('input'));
-  e.target.value = '';
-});
+    const startedAt = PlayerDB.nowISO();
+    let playersPushed = 0;
+    let nicksPushed = 0;
 
-let lastReport = null;
+    for (let i = 0; i < players.length; i += CHUNK) {
+      playersPushed += await counted(prov.append, cfg, SHEET_PLAYERS, players.slice(i, i + CHUNK));
+    }
+    for (let i = 0; i < history.length; i += CHUNK) {
+      nicksPushed += await counted(prov.append, cfg, SHEET_HISTORY, history.slice(i, i + CHUNK));
+    }
+    if (prov.defer && playersPushed + nicksPushed) await prov.defer();
 
-function runImport(dryRun) {
-  const { entries, invalid, totalLines } = parseList(importText.value);
-  const report = importEntries(entries, 'import', dryRun);
-  report.parsed = entries.length;
-  report.invalid = invalid;
-  report.dryRun = dryRun;
-  lastReport = report;
+    usage.rowsPushed += playersPushed + nicksPushed;
+    saveConfig(storage, { ...cfg, lastPushAt: startedAt });
 
-  renderImportReport(report);
-  importReport.classList.remove('hidden');
+    return { skipped: false, playersPushed, nicksPushed, lastPushAt: startedAt };
+  }
 
-  if (!dryRun) {
-    importText.value = '';
-    importText.dispatchEvent(new Event('input'));
+  async function pull(storage, db, cfg, onProgress) {
+    const prov = provider(cfg);
+    const startedAt = PlayerDB.nowISO();
+
+    const playerRows = await fetchAll(prov, cfg, SHEET_PLAYERS, onProgress);
+    const nickRows = await fetchAll(prov, cfg, SHEET_HISTORY, onProgress);
+    const merged = mergeSnapshot(db, playerRows, nickRows);
+
+    merged.lastPullAt = startedAt;
+    merged.empty = playerRows.length === 0;
+    saveConfig(storage, { ...cfg, lastPullAt: startedAt });
+    return merged;
+  }
+
+  /**
+   * Полный цикл: сначала забираем свежее из таблицы, затем отправляем
+   * локальные изменения. Снимок изменений берётся ДО загрузки, иначе
+   * только что полученные строки отправились бы обратно в таблицу.
+   */
+  async function sync(storage, db, cfg, opts) {
+    const startedAt = Date.now();
+    const result = { ok: true, pull: null, push: null, requests: 0, ms: 0, error: null };
+    const before = usage.requests;
+
+    if (!cfg.enabled || !hasCredentials(cfg)) {
+      result.ok = false;
+      result.error = "Синхронизация не настроена";
+      return result;
+    }
+
+    try {
+      const rows = collectChanges(db, opts && opts.full ? null : cfg.lastPushAt);
+      result.pull = await pull(storage, db, cfg, opts && opts.onProgress);
+      result.push = await push(storage, db, loadConfig(storage), { rows });
+      result.requests = usage.requests - before;
+    } catch (e) {
+      result.ok = false;
+      result.error = e.message;
+      result.requests = usage.requests - before;
+    }
+    result.ms = Date.now() - startedAt;
+    return result;
+  }
+
+  function hasCredentials(cfg) {
+    if (!cfg) return false;
+    if (cfg.provider === "sheetdb") return !!String(cfg.apiId || "").trim();
+    if (cfg.provider === "sheetson") return !!String(cfg.apiKey || "").trim() && !!String(cfg.spreadsheetId || "").trim();
+    return false;
+  }
+
+  async function pushAll(storage, db, cfg) {
+    saveConfig(storage, { ...cfg, lastPushAt: null });
+    return push(storage, db, loadConfig(storage), { full: true });
+  }
+
+  /* ---------- публичный API ---------- */
+
+  global.PlayerSync = {
+    CONFIG_KEY,
+    SHEETS: { players: SHEET_PLAYERS, history: SHEET_HISTORY },
+    PROVIDERS,
+    DEFAULT_CONFIG,
+    loadConfig,
+    saveConfig,
+    hasCredentials,
+    getUsage: () => ({ ...usage }),
+    resetUsage: () => {
+      usage.requests = 0;
+      usage.rowsPushed = 0;
+      usage.rowsPulled = 0;
+    },
+    check,
+    pull,
+    push,
+    pushAll,
+    sync,
+    mergeSnapshot,
+    collectChanges,
+  };
+})(window);
+
+</script>
+<script>
+/* ============================================================
+   app.js — интерфейс. Собирается в index.html через dev/build.mjs.
+   ============================================================ */
+(function () {
+  "use strict";
+
+  const DB = window.PlayerDB;
+  const SYNC = window.PlayerSync;
+  const storage = window.localStorage;
+
+  let db = DB.load(storage);
+  let searchQuery = "";
+  let searchTimer = null;
+  let syncBusy = false;
+
+  /* ---------- утилиты ---------- */
+
+  const $ = (id) => document.getElementById(id);
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function highlight(text, query) {
+    const q = String(query || "").trim();
+    if (!q) return escapeHtml(text);
+    const i = String(text).toLowerCase().indexOf(q.toLowerCase());
+    if (i < 0) return escapeHtml(text);
+    return (
+      escapeHtml(String(text).slice(0, i)) +
+      "<mark>" + escapeHtml(String(text).slice(i, i + q.length)) + "</mark>" +
+      escapeHtml(String(text).slice(i + q.length))
+    );
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString("ru-RU", {
+      day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+  }
+
+  function num(n) {
+    return Number(n || 0).toLocaleString("ru-RU");
+  }
+
+  function persist() {
+    const err = DB.save(storage, db);
+    if (err) showToast(err, "rose");
+    return !err;
+  }
+
+  function showToast(text, tone) {
+    const colors = {
+      emerald: "border-emerald-500/40 bg-emerald-500/15 text-emerald-200",
+      rose: "border-rose-500/40 bg-rose-500/15 text-rose-200",
+      amber: "border-amber-500/40 bg-amber-500/15 text-amber-100",
+      indigo: "border-indigo-500/40 bg-indigo-500/15 text-indigo-100",
+    };
+    const el = document.createElement("div");
+    el.className =
+      "fade-in fixed bottom-4 left-1/2 z-50 w-[min(92vw,32rem)] -translate-x-1/2 rounded-xl border px-4 py-3 text-sm shadow-xl shadow-black/40 " +
+      (colors[tone] || colors.indigo);
+    el.textContent = text;
+    document.body.appendChild(el);
+    setTimeout(() => {
+      el.style.transition = "opacity .3s";
+      el.style.opacity = "0";
+      setTimeout(() => el.remove(), 320);
+    }, 4200);
+  }
+
+  /* ---------- статистика ---------- */
+
+  function updateStats() {
+    const s = DB.getStats(db);
+    $("stat-players").textContent = num(s.players);
+    $("stat-nicknames").textContent = num(s.nicknames);
+    $("stat-changed").textContent = num(s.changed);
+    $("seed-banner").classList.toggle("hidden", s.players > 0);
+  }
+
+  /* ---------- отрисовка результатов ---------- */
+
+  function renderResults(query) {
+    searchQuery = query;
+    const changedOnly = $("filter-changed").checked;
+    const { total, results } = DB.searchPlayers(db, query, { changedOnly, limit: 100 });
+    const container = $("search-results");
+    const status = $("search-status");
+
+    if (!query) {
+      status.textContent = `Недавно обновлённые · показано ${results.length} из ${num(total)}`;
+    } else {
+      status.textContent =
+        total === 0
+          ? "Ничего не найдено"
+          : `${num(total)} ${plural(total, "совпадение", "совпадения", "совпадений")}` +
+            (total > results.length ? ` (показано ${results.length})` : "");
+    }
+
+    if (!results.length) {
+      container.innerHTML = `<div class="rounded-2xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
+        ${query ? "Ничего не найдено. Если игрок новый — добавьте его на вкладке «Добавить»." : "База пуста: загрузите стартовый список или данные из Google Sheets."}
+      </div>`;
+      return;
+    }
+
+    container.innerHTML = results.map((p) => renderPlayerCard(p, query)).join("");
+  }
+
+  function plural(n, one, few, many) {
+    const a = Math.abs(n) % 100;
+    const b = a % 10;
+    if (a > 10 && a < 20) return many;
+    if (b > 1 && b < 5) return few;
+    if (b === 1) return one;
+    return many;
+  }
+
+  function renderPlayerCard(p, query) {
+    const visible = DB.visibleNicks(p);
+    const previous = visible.filter((n) => n.nick !== p.currentNick);
+    const allVisible = visible.length;
+
+    return `
+    <article class="fade-in rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-lg shadow-black/20" data-card="${p.gameId}">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-xs uppercase tracking-wider text-slate-500">Текущий ник</p>
+          <h3 class="mt-0.5 whitespace-pre-wrap break-all text-xl font-semibold text-white">${highlight(p.currentNick, query)}</h3>
+        </div>
+        <div class="text-right">
+          <p class="text-xs uppercase tracking-wider text-slate-500">ID игрока</p>
+          <button data-act="copy" data-id="${p.gameId}" title="Скопировать ID"
+            class="mt-0.5 rounded-lg bg-indigo-500/15 px-2.5 py-1 font-mono text-lg font-semibold text-indigo-300 transition hover:bg-indigo-500/25">
+            ${p.gameId}<span class="ml-2 text-xs font-normal text-indigo-200/70">копировать</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        ${p.level !== null ? `<span class="rounded-full bg-slate-800 px-2.5 py-1 text-slate-300">Уровень ${p.level}</span>` : ""}
+        <span class="rounded-full bg-slate-800 px-2.5 py-1 text-slate-300">${allVisible} ${plural(allVisible, "ник", "ника", "ников")}</span>
+        ${p.source === "manual" ? '<span class="rounded-full bg-emerald-500/15 px-2.5 py-1 text-emerald-300">добавлен вручную</span>' : ""}
+        ${allVisible > 1 ? '<span class="rounded-full bg-amber-500/15 px-2.5 py-1 text-amber-300">ник менялся</span>' : ""}
+        <span class="rounded-full bg-slate-800 px-2.5 py-1 text-slate-400">обновлён ${formatDate(p.updatedAt)}</span>
+      </div>
+
+      ${previous.length ? `
+      <div class="mt-3">
+        <p class="text-xs uppercase tracking-wider text-slate-500">Прежние ники</p>
+        <div class="mt-1.5 flex flex-wrap gap-1.5">
+          ${previous.map((n) => `<span class="whitespace-pre-wrap break-all rounded-lg border border-slate-700 bg-slate-800/60 px-2 py-1 text-sm text-slate-300">${highlight(n.nick, query)}</span>`).join("")}
+        </div>
+      </div>` : ""}
+
+      ${p.note ? `<p class="mt-3 text-sm italic text-slate-400">«${escapeHtml(p.note)}»</p>` : ""}
+
+      <button data-act="toggle" class="mt-3 text-sm text-slate-400 underline-offset-4 hover:text-white hover:underline">Управление / история</button>
+
+      <div class="player-details hidden mt-3 space-y-4 border-t border-slate-800 pt-4">
+        <div>
+          <p class="mb-2 text-xs uppercase tracking-wider text-slate-500">История ников (от старых к новым)</p>
+          <ul class="space-y-1.5">
+            ${p.nicks.map((n) => {
+              const isCurrent = n.nick === p.currentNick && !n.removed;
+              return `
+              <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg ${n.removed ? "bg-slate-900/60 opacity-60" : "bg-slate-800/50"} px-3 py-2">
+                <div class="min-w-0">
+                  <span class="whitespace-pre-wrap break-all text-sm ${n.removed ? "text-slate-400 line-through" : "text-slate-100"}">${escapeHtml(n.nick)}</span>
+                  ${isCurrent ? '<span class="ml-2 rounded bg-indigo-500/20 px-1.5 py-0.5 text-xs text-indigo-300">текущий</span>' : ""}
+                  ${n.removed ? '<span class="ml-2 rounded bg-rose-500/15 px-1.5 py-0.5 text-xs text-rose-300">удалён</span>' : ""}
+                  <span class="ml-2 text-xs text-slate-500">${escapeHtml(n.source)} · ${formatDate(n.seenAt)}</span>
+                </div>
+                <div class="flex gap-3 text-xs">
+                  ${!isCurrent && !n.removed ? `<button data-act="set-current" data-id="${p.gameId}" data-nick="${escapeHtml(n.nick)}" class="text-indigo-300 hover:underline">сделать текущим</button>` : ""}
+                  ${!n.removed && allVisible > 1 ? `<button data-act="remove-nick" data-id="${p.gameId}" data-nick="${escapeHtml(n.nick)}" class="text-rose-400 hover:underline">удалить</button>` : ""}
+                </div>
+              </li>`;
+            }).join("")}
+          </ul>
+        </div>
+
+        <form data-form="add-nick" data-id="${p.gameId}" class="flex flex-wrap gap-2">
+          <input type="text" name="newnick" placeholder="Новый ник (станет текущим)"
+            class="input-field min-w-0 flex-1 py-2 text-sm">
+          <button type="submit" class="btn bg-indigo-500 px-4 py-2 text-sm text-white hover:bg-indigo-400">Добавить ник</button>
+        </form>
+
+        <form data-form="note" data-id="${p.gameId}" class="flex flex-wrap gap-2">
+          <input type="text" name="note" value="${escapeHtml(p.note || "")}" placeholder="Заметка об игроке"
+            class="input-field min-w-0 flex-1 py-2 text-sm">
+          <button type="submit" class="btn bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600">Сохранить заметку</button>
+        </form>
+
+        <div class="flex items-center justify-between">
+          <p class="text-sm text-rose-400" data-error></p>
+          <button data-act="delete-player" data-id="${p.gameId}"
+            class="rounded-lg border border-rose-500/40 px-3 py-1.5 text-sm text-rose-300 hover:bg-rose-500/10">Удалить игрока</button>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function refreshAll() {
+    updateStats();
+    renderResults($("search-input").value);
+    renderSyncStatus();
+  }
+
+  /* ---------- действия в карточке (делегирование) ---------- */
+
+  $("search-results").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-act]");
+    if (!btn) return;
+    const id = Number(btn.dataset.id);
+    const nick = btn.dataset.nick;
+    let err = null;
+
+    switch (btn.dataset.act) {
+      case "copy":
+        navigator.clipboard.writeText(String(id)).then(() => {
+          const span = btn.querySelector("span");
+          if (span) {
+            const old = span.textContent;
+            span.textContent = "скопировано";
+            setTimeout(() => (span.textContent = old), 1200);
+          }
+        }).catch(() => showToast("Не удалось скопировать — выделите ID вручную", "amber"));
+        return;
+      case "toggle": {
+        const details = btn.nextElementSibling;
+        const hidden = details.classList.contains("hidden");
+        details.classList.toggle("hidden", !hidden);
+        btn.textContent = hidden ? "Скрыть историю" : "Управление / история";
+        return;
+      }
+      case "set-current":
+        err = DB.setCurrent(db, id, nick);
+        break;
+      case "remove-nick":
+        err = DB.removeNick(db, id, nick);
+        break;
+      case "delete-player": {
+        const p = DB.findPlayer(db, id);
+        if (!p) return;
+        if (!confirm(`Удалить игрока ${id} (${p.currentNick}) и всю историю ников?`)) return;
+        err = DB.deletePlayer(db, id);
+        break;
+      }
+      default:
+        return;
+    }
+
+    if (err) {
+      const holder = btn.closest("article").querySelector("[data-error]");
+      if (holder) holder.textContent = err;
+      return;
+    }
+    if (persist()) refreshAll();
+  });
+
+  $("search-results").addEventListener("submit", (e) => {
+    const form = e.target.closest("[data-form]");
+    if (!form) return;
+    e.preventDefault();
+    const id = Number(form.dataset.id);
+    let err = null;
+
+    if (form.dataset.form === "add-nick") {
+      const input = form.querySelector('input[name="newnick"]');
+      const nick = input.value.trim();
+      if (!nick) return;
+      err = DB.addNick(db, id, nick, "manual");
+      if (!err) input.value = "";
+    } else if (form.dataset.form === "note") {
+      err = DB.setNote(db, id, form.querySelector('input[name="note"]').value);
+    }
+
+    if (err) {
+      const holder = form.closest("article").querySelector("[data-error]");
+      if (holder) holder.textContent = err;
+      return;
+    }
+    if (persist()) refreshAll();
+  });
+
+  /* ---------- поиск ---------- */
+
+  const searchInput = $("search-input");
+  const searchClear = $("search-clear");
+
+  searchInput.addEventListener("input", () => {
+    searchClear.classList.toggle("hidden", !searchInput.value);
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => renderResults(searchInput.value), 180);
+  });
+
+  searchClear.addEventListener("click", () => {
+    searchInput.value = "";
+    searchClear.classList.add("hidden");
+    renderResults("");
+    searchInput.focus();
+  });
+
+  $("filter-changed").addEventListener("change", () => renderResults(searchInput.value));
+
+  /* ---------- вкладки ---------- */
+
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => {
+        b.classList.remove("tab-active");
+        b.classList.add("text-slate-400");
+      });
+      btn.classList.add("tab-active");
+      btn.classList.remove("text-slate-400");
+
+      document.querySelectorAll(".tab-content").forEach((c) => c.classList.add("hidden"));
+      $("tab-" + btn.dataset.tab).classList.remove("hidden");
+      if (btn.dataset.tab === "backup") updateStorageInfo();
+      if (btn.dataset.tab === "sync") renderSyncStatus();
+      if (btn.dataset.tab === "search") searchInput.focus();
+    });
+  });
+
+  /* ---------- стартовый список ---------- */
+
+  $("btn-seed").addEventListener("click", async () => {
+    const btn = $("btn-seed");
+    const err = $("seed-error");
+    btn.disabled = true;
+    btn.textContent = "Загружаю…";
+    err.classList.add("hidden");
+    try {
+      const resp = await fetch("data/initial-players.txt", { cache: "no-store" });
+      if (!resp.ok) throw new Error("Не удалось загрузить стартовый список (" + resp.status + ")");
+      const parsed = DB.parseList(await resp.text());
+      if (!parsed.entries.length) throw new Error("Стартовый список пуст или в неизвестном формате");
+      const { report, actions } = DB.planImport(db, parsed.entries, "seed", {
+        totalLines: parsed.totalLines,
+        invalid: parsed.invalid,
+      });
+      DB.applyImport(db, actions, "seed");
+      if (persist()) refreshAll();
+      showToast(
+        `Загружено: ${num(report.newPlayers)} новых игроков, ${num(report.nicksAdded)} ников.` +
+          (parsed.invalid.length ? ` Пропущено строк: ${parsed.invalid.length}.` : ""),
+        "emerald",
+      );
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.remove("hidden");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Загрузить стартовый список (1000)";
+    }
+  });
+
+  /* ---------- форма добавления ---------- */
+
+  $("add-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = $("add-msg");
+    const gameIdStr = $("add-gameid").value.trim();
+    const nick = $("add-nick").value.trim();
+    const older = $("add-older").value.split("\n").map((s) => s.trim()).filter(Boolean);
+    const levelStr = $("add-level").value.trim();
+    const note = $("add-note").value.trim();
+
+    if (!/^\d{1,15}$/.test(gameIdStr) || Number(gameIdStr) <= 0) {
+      msg.textContent = "ID должен быть положительным числом";
+      msg.className = "text-sm text-rose-400";
+      return;
+    }
+    if (!nick) {
+      msg.textContent = "Ник обязателен";
+      msg.className = "text-sm text-rose-400";
+      return;
+    }
+
+    const { created } = DB.addManual(db, {
+      gameId: Number(gameIdStr),
+      nick,
+      olderNicks: older,
+      level: /^\d{1,9}$/.test(levelStr) ? Number(levelStr) : null,
+      note: note || null,
+    });
+
+    if (!persist()) return;
+    msg.textContent = created
+      ? `Игрок ${gameIdStr} добавлен.`
+      : `Игрок ${gameIdStr} уже был — ник добавлен в историю и стал текущим.`;
+    msg.className = "text-sm text-emerald-400";
+
+    $("add-gameid").value = "";
+    $("add-nick").value = "";
+    $("add-older").value = "";
+    $("add-level").value = "";
+    $("add-note").value = "";
     refreshAll();
+  });
+
+  /* ============================================================
+     Импорт списка — с исправленным отчётом
+     ============================================================ */
+
+  const importText = $("import-text");
+  const btnScan = $("btn-scan");
+  const btnDoImport = $("btn-do-import");
+  const importReport = $("import-report");
+  const importError = $("import-error");
+
+  function updateImportButtons() {
+    const has = !!importText.value.trim();
+    const lines = importText.value.split("\n").filter((l) => l.trim()).length;
+    $("import-linecount").textContent = has
+      ? `${num(lines)} ${plural(lines, "строка", "строки", "строк")}`
+      : "";
+    btnScan.disabled = !has || syncBusy;
+    btnDoImport.disabled = !has || syncBusy;
+    importError.classList.add("hidden");
   }
-}
 
-btnScan.addEventListener('click', () => runImport(true));
-btnDoImport.addEventListener('click', () => runImport(false));
+  importText.addEventListener("input", () => {
+    importReport.classList.add("hidden");
+    updateImportButtons();
+  });
 
-function renderImportReport(r) {
-  importReport.innerHTML = `
-    <p class="font-medium text-white">${r.dryRun ? 'Preview – nothing saved yet' : 'Import finished ✔'}</p>
-    <div class="mt-3 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
-      <div class="rounded-lg bg-slate-900 px-2 py-3">
-        <p class="text-2xl font-semibold text-white">${r.parsed}</p>
-        <p class="text-xs text-slate-500">Lines read</p>
+  $("btn-upload").addEventListener("click", () => $("import-file").click());
+
+  $("import-file").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    importText.value = await file.text();
+    importText.dispatchEvent(new Event("input"));
+    e.target.value = "";
+  });
+
+  function runImport(dryRun) {
+    const text = importText.value;
+    if (!text.trim()) {
+      importError.textContent = "Список пуст.";
+      importError.classList.remove("hidden");
+      return;
+    }
+
+    const parsed = DB.parseList(text);
+    if (!parsed.entries.length) {
+      importError.textContent =
+        "Не найдено ни одной корректной строки.\nОжидаемый формат: 1 \"Ник\" 7646467 1566560000 9999";
+      importError.classList.remove("hidden");
+      importReport.classList.add("hidden");
+      return;
+    }
+
+    let report;
+    if (dryRun) {
+      report = DB.planImport(db, parsed.entries, "import", {
+        totalLines: parsed.totalLines,
+        invalid: parsed.invalid,
+        dryRun: true,
+      }).report;
+    } else {
+      // Планируем и применяем на одном и том же снимке базы.
+      const plan = DB.planImport(db, parsed.entries, "import", {
+        totalLines: parsed.totalLines,
+        invalid: parsed.invalid,
+        dryRun: false,
+      });
+      DB.applyImport(db, plan.actions, "import");
+      report = plan.report;
+      if (!persist()) return;
+      // Отчёт остаётся на экране: текст НЕ очищаем, поле не трогаем.
+      updateStats();
+      renderResults($("search-input").value);
+    }
+
+    renderImportReport(report);
+    importReport.classList.remove("hidden");
+    importReport.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (!dryRun) renderSyncStatus();
+  }
+
+  btnScan.addEventListener("click", () => runImport(true));
+  btnDoImport.addEventListener("click", () => runImport(false));
+
+  function reportRow(label, value, tone) {
+    const color =
+      tone === "emerald" ? "text-emerald-300" : tone === "amber" ? "text-amber-300" : tone === "indigo" ? "text-indigo-300" : "text-white";
+    return `<div class="rounded-lg bg-slate-900 px-2 py-3">
+      <p class="report-num text-2xl font-semibold ${color}">${value}</p>
+      <p class="text-xs text-slate-500">${label}</p>
+    </div>`;
+  }
+
+  function renderImportReport(r) {
+    const duplicates = Math.max(0, r.parsed - (r.uniqueIds || 0) - 0);
+    const totalChecked = r.newPlayers + r.renamed.length + r.unchanged;
+
+    importReport.innerHTML = `
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="font-medium text-white">${r.dryRun ? "Предпросмотр — ничего не сохранено" : "Импорт завершён ✔"}</p>
+        <span class="text-xs text-slate-500">${r.dryRun ? "проверка" : "отчёт сохранён на экране"}</span>
       </div>
-      <div class="rounded-lg bg-slate-900 px-2 py-3">
-        <p class="text-2xl font-semibold text-emerald-300">${r.newPlayers}</p>
-        <p class="text-xs text-slate-500">New players</p>
+
+      <div class="mt-3 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
+        ${reportRow("Корректных строк", num(r.parsed))}
+        ${reportRow("Уникальных ID", num(r.uniqueIds))}
+        ${reportRow("Новых игроков", num(r.newPlayers), "emerald")}
+        ${reportRow("Сменили ник", num(r.renamed.length), "amber")}
+        ${reportRow("Без изменений", num(r.unchanged))}
+        ${reportRow("Ников добавлено", num(r.nicksAdded), "indigo")}
+        ${reportRow("Повторов строк", num(r.duplicateLines))}
+        ${reportRow("Строк пропущено", num(r.invalid.length), r.invalid.length ? "amber" : undefined)}
       </div>
-      <div class="rounded-lg bg-slate-900 px-2 py-3">
-        <p class="text-2xl font-semibold text-amber-300">${r.renamed.length}</p>
-        <p class="text-xs text-slate-500">Nick changed</p>
-      </div>
-      <div class="rounded-lg bg-slate-900 px-2 py-3">
-        <p class="text-2xl font-semibold text-white">${r.unchanged}</p>
-        <p class="text-xs text-slate-500">Unchanged</p>
-      </div>
-    </div>
 
-    ${r.renamed.length > 0 ? `
-    <div class="mt-4">
-      <p class="text-sm font-medium text-amber-300">Nickname changes detected</p>
-      <ul class="mt-2 max-h-72 space-y-1 overflow-auto text-sm">
-        ${r.renamed.map(x => `
-          <li class="rounded-lg bg-slate-900 px-3 py-1.5 text-slate-300">
-            <span class="font-mono text-indigo-300">${x.gameId}</span>
-            <span class="whitespace-pre-wrap text-slate-500 line-through"> ${escapeHtml(x.oldNick)}</span>
-            <span class="mx-1.5 text-slate-500">→</span>
-            <span class="whitespace-pre-wrap text-white">${escapeHtml(x.newNick)}</span>
-          </li>`).join('')}
-      </ul>
-    </div>` : ''}
+      <p class="mt-3 text-xs ${r.balanceOk ? "text-slate-500" : "text-rose-300"}">
+        ${r.balanceOk
+          ? `Проверка сходится: ${num(r.newPlayers)} новых + ${num(r.renamed.length)} изменённых + ${num(r.unchanged)} без изменений = ${num(totalChecked)} из ${num(r.uniqueIds)} ID.`
+          : `Внимание: суммы не сходятся (${num(totalChecked)} из ${num(r.uniqueIds)}). Сообщите об этом — в отчёте ошибка.`}
+      </p>
 
-    ${r.newSample.length > 0 ? `
-    <details class="mt-4 text-sm text-slate-400">
-      <summary class="cursor-pointer text-emerald-300">New players${r.newPlayers > r.newSample.length ? ` (first ${r.newSample.length})` : ''}</summary>
-      <ul class="mt-2 space-y-1">
-        ${r.newSample.map(n => `<li><span class="font-mono text-indigo-300">${n.gameId}</span> <span class="whitespace-pre-wrap">${escapeHtml(n.nick)}</span></li>`).join('')}
-      </ul>
-    </details>` : ''}
+      ${r.renamed.length ? `
+      <div class="mt-4">
+        <p class="text-sm font-medium text-amber-300">Найденные смены ников (${num(r.renamed.length)})</p>
+        <ul class="mt-2 max-h-72 space-y-1 overflow-auto text-sm">
+          ${r.renamed.map((x) => `
+            <li class="rounded-lg bg-slate-900 px-3 py-1.5 text-slate-300">
+              <span class="font-mono text-indigo-300">${x.gameId}</span>
+              <span class="whitespace-pre-wrap text-slate-500 line-through"> ${escapeHtml(x.oldNick)}</span>
+              <span class="mx-1.5 text-slate-500">→</span>
+              <span class="whitespace-pre-wrap text-white">${escapeHtml(x.newNick)}</span>
+              ${x.nicksAdded ? `<span class="ml-2 text-xs text-slate-500">+${x.nicksAdded} в историю</span>` : ""}
+            </li>`).join("")}
+        </ul>
+      </div>` : ""}
 
-    ${r.invalid.length > 0 ? `
-    <details class="mt-4 text-sm text-slate-400">
-      <summary class="cursor-pointer text-rose-300">${r.invalid.length} line(s) skipped</summary>
-      <ul class="mt-2 space-y-1 font-mono text-xs">
-        ${r.invalid.map(l => `<li>#${l.line}: ${escapeHtml(l.text)}</li>`).join('')}
-      </ul>
-    </details>` : ''}
+      ${r.newSample.length ? `
+      <details class="mt-4 text-sm text-slate-400">
+        <summary class="cursor-pointer text-emerald-300">Новые игроки${r.newPlayers > r.newSample.length ? ` (первые ${r.newSample.length} из ${num(r.newPlayers)})` : ""}</summary>
+        <ul class="mt-2 space-y-1">
+          ${r.newSample.map((n) => `<li><span class="font-mono text-indigo-300">${n.gameId}</span> <span class="whitespace-pre-wrap">${escapeHtml(n.nick)}</span></li>`).join("")}
+        </ul>
+      </details>` : ""}
 
-    ${r.dryRun ? `<button onclick="runImport(false)" class="mt-4 rounded-xl bg-indigo-500 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-400">Looks right – import now</button>` : ''}
-  `;
-}
+      ${r.invalid.length ? `
+      <details class="mt-4 text-sm text-slate-400">
+        <summary class="cursor-pointer text-rose-300">Пропущено строк: ${num(r.invalid.length)}</summary>
+        <ul class="mt-2 space-y-1 font-mono text-xs">
+          ${r.invalid.slice(0, 100).map((l) => `<li>#${l.line}: ${escapeHtml(l.text)}</li>`).join("")}
+        </ul>
+        ${r.invalid.length > 100 ? `<p class="mt-1 text-xs text-slate-500">…и ещё ${num(r.invalid.length - 100)}</p>` : ""}
+      </details>` : ""}
 
-// ============================================================
-// Backup tab
-// ============================================================
-function updateStorageInfo() {
-  const data = localStorage.getItem(DB_KEY) || '';
-  const bytes = new Blob([data]).size;
-  const count = Object.keys(db.players).length;
-  document.getElementById('storage-info').textContent =
-    `${count} players · ${(bytes / 1024).toFixed(1)} KB used in localStorage`;
-}
+      ${r.dryRun
+        ? `<button data-act="confirm-import" class="btn mt-4 bg-indigo-500 px-5 py-2 text-sm text-white hover:bg-indigo-400">Всё верно — импортировать</button>`
+        : `<p class="mt-4 text-xs text-slate-500">Данные сохранены локально. Чтобы отправить их на другие устройства — нажмите «Синхронизировать» вверху.</p>`}
+    `;
+  }
 
-document.getElementById('btn-export').addEventListener('click', () => {
-  const data = JSON.stringify(db, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `player-directory-backup-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showBackupMsg('Data exported!', 'text-emerald-400');
-});
+  importReport.addEventListener("click", (e) => {
+    const btn = e.target.closest('[data-act="confirm-import"]');
+    if (!btn) return;
+    runImport(false);
+  });
 
-document.getElementById('btn-import-backup').addEventListener('click', () => {
-  document.getElementById('import-backup-file').click();
-});
+  /* ---------- бэкап ---------- */
 
-document.getElementById('import-backup-file').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const imported = JSON.parse(text);
-    if (!imported.players || typeof imported.players !== 'object') throw new Error('Invalid backup file');
-    if (!confirm(`This will replace all current data with ${Object.keys(imported.players).length} players from the backup. Continue?`)) return;
-    db = imported;
-    saveDB(db);
+  function updateStorageInfo() {
+    const raw = storage.getItem(DB.DB_KEY) || "";
+    const bytes = new Blob([raw]).size;
+    const s = DB.getStats(db);
+    $("storage-info").textContent =
+      `${num(s.players)} игроков · ${num(s.nicknames)} ников · ${(bytes / 1024).toFixed(1)} КБ в localStorage этого браузера`;
+  }
+
+  function backupMsg(text, tone) {
+    const el = $("backup-msg");
+    el.textContent = text;
+    el.className = "mt-4 text-sm " + (tone === "rose" ? "text-rose-400" : tone === "amber" ? "text-amber-400" : "text-emerald-400");
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.add("hidden"), 6000);
+  }
+
+  $("btn-export").addEventListener("click", () => {
+    const payload = {
+      ...db,
+      exportedAt: new Date().toISOString(),
+      app: "player-nickname-directory",
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `player-directory-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    backupMsg("Резервная копия скачана.", "emerald");
+  });
+
+  $("btn-import-backup").addEventListener("click", () => $("import-backup-file").click());
+
+  $("import-backup-file").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const imported = JSON.parse(await file.text());
+      if (!imported || typeof imported.players !== "object") throw new Error("В файле нет данных игроков");
+      const count = Object.keys(imported.players).length;
+      if (!confirm(`Заменить текущие данные на ${num(count)} игроков из файла?`)) return;
+      db = DB.normalizeDB(imported);
+      if (!persist()) return;
+      refreshAll();
+      updateStorageInfo();
+      backupMsg(`Восстановлено игроков: ${num(DB.getStats(db).players)}.`, "emerald");
+    } catch (err) {
+      backupMsg("Не удалось восстановить: " + err.message, "rose");
+    }
+    e.target.value = "";
+  });
+
+  $("btn-clear-all").addEventListener("click", () => {
+    if (!confirm("Удалить ВСЕ данные из этого браузера? В Google Sheets останется копия.")) return;
+    if (!confirm("Точно удалить? Сначала лучше скачать резервную копию.")) return;
+    db = DB.emptyDB();
+    if (!persist()) return;
     refreshAll();
     updateStorageInfo();
-    showBackupMsg(`Restored ${Object.keys(db.players).length} players from backup.`, 'text-emerald-400');
-  } catch (err) {
-    showBackupMsg('Failed to import: ' + err.message, 'text-rose-400');
+    backupMsg("Все локальные данные удалены.", "amber");
+  });
+
+  /* ============================================================
+     Панель синхронизации
+     ============================================================ */
+
+  let cfg = SYNC.loadConfig(storage);
+
+  function readConfigForm() {
+    const provider = $("sync-provider").value;
+    return {
+      ...cfg,
+      provider,
+      enabled: $("sync-enabled").checked,
+      apiId: $("sync-apiid").value.trim(),
+      apiKey: $("sync-apikey").value.trim(),
+      spreadsheetId: $("sync-spreadsheet").value.trim(),
+      autoPullMinutes: Number($("sync-interval").value) || 0,
+    };
   }
-  e.target.value = '';
-});
 
-document.getElementById('btn-clear-all').addEventListener('click', () => {
-  if (!confirm('Are you sure you want to delete ALL player data? This cannot be undone.')) return;
-  if (!confirm('Really delete everything? Consider exporting a backup first.')) return;
-  db = { players: {} };
-  saveDB(db);
-  refreshAll();
-  updateStorageInfo();
-  showBackupMsg('All data cleared.', 'text-amber-400');
-});
+  function fillConfigForm() {
+    $("sync-provider").value = cfg.provider || "sheetdb";
+    $("sync-enabled").checked = !!cfg.enabled;
+    $("sync-apiid").value = cfg.apiId || "";
+    $("sync-apikey").value = cfg.apiKey || "";
+    $("sync-spreadsheet").value = cfg.spreadsheetId || "";
+    $("sync-interval").value = String(cfg.autoPullMinutes == null ? 10 : cfg.autoPullMinutes);
+    toggleProviderFields();
+  }
 
-function showBackupMsg(text, cls) {
-  const el = document.getElementById('backup-msg');
-  el.textContent = text;
-  el.className = 'mt-4 text-sm ' + cls;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 5000);
-}
+  function toggleProviderFields() {
+    const p = $("sync-provider").value;
+    $("field-sheetdb-apiid").classList.toggle("hidden", p !== "sheetdb");
+    $("field-sheetson-key").classList.toggle("hidden", p !== "sheetson");
+    $("field-sheetson-id").classList.toggle("hidden", p !== "sheetson");
+    const prov = SYNC.PROVIDERS[p];
+    $("sync-provider-label").textContent = prov ? prov.label : "—";
+  }
+
+  $("sync-provider").addEventListener("change", toggleProviderFields);
+  $("sync-enabled").addEventListener("change", () => {
+    cfg = readConfigForm();
+    SYNC.saveConfig(storage, cfg);
+    renderSyncStatus();
+  });
+
+  function renderSyncStatus() {
+    const dot = $("sync-dot");
+    const status = $("sync-status");
+    const usage = SYNC.getUsage();
+
+    $("sync-last-pull").textContent = formatDateTime(cfg.lastPullAt);
+    $("sync-last-push").textContent = formatDateTime(cfg.lastPushAt);
+    $("sync-usage-panel").textContent = num(usage.requests);
+    $("sync-usage").textContent = usage.requests ? `${num(usage.requests)} запросов` : "";
+
+    if (!SYNC.hasCredentials(cfg)) {
+      dot.className = "status-dot bg-slate-600";
+      status.textContent = "Google Sheets не подключён — данные только в этом браузере. Включить → вкладка «Sheets».";
+      $("btn-sync-now").disabled = true;
+      return;
+    }
+    if (!cfg.enabled) {
+      dot.className = "status-dot bg-slate-500";
+      status.textContent = "Синхронизация выключена (галочка «Включена» на вкладке «Sheets»).";
+      $("btn-sync-now").disabled = true;
+      return;
+    }
+
+    $("btn-sync-now").disabled = syncBusy;
+    dot.className = syncBusy ? "status-dot bg-amber-400" : "status-dot bg-emerald-400";
+    status.textContent = syncBusy
+      ? "Синхронизация…"
+      : `Google Sheets подключён · последняя загрузка ${formatDateTime(cfg.lastPullAt)}` +
+        (cfg.lastPushAt ? ` · отправка ${formatDateTime(cfg.lastPushAt)}` : "");
+  }
+
+  async function runSync(action, opts) {
+    if (syncBusy) return;
+    syncBusy = true;
+    renderSyncStatus();
+    updateImportButtons();
+
+    const msg = $("sync-action-msg");
+    msg.className = "mt-3 text-sm text-slate-400";
+    msg.textContent = "Работаю…";
+
+    try {
+      cfg = readConfigForm();
+      SYNC.saveConfig(storage, cfg);
+
+      if (!SYNC.hasCredentials(cfg)) {
+        msg.className = "mt-3 text-sm text-amber-300";
+        msg.textContent = "Сначала заполните ID/ключ и нажмите «Сохранить настройки».";
+        return;
+      }
+
+      if (action === "check") {
+        const r = await SYNC.check(storage, cfg);
+        renderCheck(r);
+        msg.className = "mt-3 text-sm " + (r.ok ? "text-emerald-300" : "text-rose-300");
+        msg.textContent = r.ok ? "Подключение работает, листы найдены." : "Есть проблемы: " + r.errors.join("; ");
+        return;
+      }
+
+      let result;
+      if (action === "pull") {
+        result = await SYNC.pull(storage, db, cfg);
+        persist();
+        refreshAll();
+        msg.className = "mt-3 text-sm text-emerald-300";
+        msg.textContent =
+          `В таблице: игроков ${num(result.playersPulled)}, записей истории ${num(result.nicksPulled)}.\n` +
+          `Локально: добавлено игроков ${num(result.playersCreated)}, обновлено ${num(result.playersUpdated)}, ников ${num(result.nicksAdded)}. ` +
+          (result.empty ? "Таблица пуста — сначала отправьте данные." : "");
+        if (result.empty) msg.className = "mt-3 text-sm text-amber-300";
+      } else if (action === "push") {
+        result = await SYNC.push(storage, db, cfg);
+        cfg = SYNC.loadConfig(storage);
+        renderSyncStatus();
+        msg.className = "mt-3 text-sm text-emerald-300";
+        msg.textContent = result.skipped
+          ? "Нет изменений с прошлой отправки."
+          : `Отправлено: строк игроков ${num(result.playersPushed)}, ников ${num(result.nicksPushed)}.`;
+      } else if (action === "full") {
+        result = await SYNC.sync(storage, db, cfg, { full: !!opts && opts.full });
+        cfg = SYNC.loadConfig(storage);
+        persist();
+        refreshAll();
+        if (!result.ok) throw new Error(result.error);
+        msg.className = "mt-3 text-sm text-emerald-300";
+        msg.textContent =
+          `Синхронизация завершена.\n` +
+          `Из таблицы: игроков ${num(result.pull.playersPulled)}, записей истории ${num(result.pull.nicksPulled)}; ` +
+          `локально добавлено ${num(result.pull.playersCreated)}, обновлено ${num(result.pull.playersUpdated)}.\n` +
+          `Отправлено: игроков ${num(result.push.playersPushed || 0)}, ников ${num(result.push.nicksPushed || 0)}.\n` +
+          `Запросов: ${num(result.requests)}.`;
+      }
+    } catch (e) {
+      msg.className = "mt-3 text-sm text-rose-300";
+      msg.textContent = "Ошибка: " + e.message;
+    } finally {
+      syncBusy = false;
+      renderSyncStatus();
+      updateImportButtons();
+    }
+  }
+
+  function renderCheck(r) {
+    const box = $("sync-check");
+    const rows = Object.entries(r.sheets)
+      .map(([name, v]) => {
+        const ok = v.ok;
+        return `<li class="flex flex-wrap items-center gap-2">
+          <span class="status-dot ${ok ? "bg-emerald-400" : "bg-rose-400"}"></span>
+          <span class="font-mono text-slate-200">${escapeHtml(name)}</span>
+          <span class="${ok ? "text-slate-400" : "text-rose-300"}">${ok
+            ? `— доступен, колонки: ${v.columns.length ? v.columns.join(", ") : "лист пуст"}`
+            : "— " + escapeHtml(v.error || "ошибка")}</span>
+        </li>`;
+      })
+      .join("");
+    box.innerHTML = `<p class="font-medium text-white">Проверка: ${escapeHtml(r.provider)}</p>
+      <ul class="mt-2 space-y-1 text-xs">${rows}</ul>
+      ${r.ok && Object.values(r.sheets).every((s) => s.columns.length)
+        ? '<p class="mt-2 text-xs text-emerald-300">Шапка листов совпадает, можно синхронизировать.</p>'
+        : '<p class="mt-2 text-xs text-amber-300">Если лист пуст — нажмите «Создать листы с шапкой» или добавьте шапку вручную (см. инструкцию ниже).</p>'}`;
+    box.classList.remove("hidden");
+  }
+
+  $("sync-save").addEventListener("click", () => {
+    cfg = readConfigForm();
+    SYNC.saveConfig(storage, cfg);
+    const msg = $("sync-config-msg");
+    msg.className = "mt-3 text-sm text-emerald-300";
+    msg.textContent = "Настройки сохранены в этом браузере.";
+    renderSyncStatus();
+  });
+
+  $("sync-test").addEventListener("click", () => runSync("check"));
+  $("sync-pull").addEventListener("click", () => runSync("pull"));
+  $("sync-push").addEventListener("click", () => runSync("push"));
+  $("sync-full").addEventListener("click", () => runSync("full"));
+  $("sync-upload-all").addEventListener("click", () => {
+    if (!confirm("Выгрузить всю локальную базу в таблицу (добавит строки заново)?")) return;
+    cfg = readConfigForm();
+    SYNC.saveConfig(storage, cfg);
+    runSync("push", { full: true });
+  });
+
+  $("sync-create-sheets").addEventListener("click", async () => {
+    cfg = readConfigForm();
+    SYNC.saveConfig(storage, cfg);
+    const msg = $("sync-config-msg");
+    if (!SYNC.hasCredentials(cfg)) {
+      msg.className = "mt-3 text-sm text-amber-300";
+      msg.textContent = "Сначала заполните ID/ключ и сохраните настройки.";
+      return;
+    }
+    msg.className = "mt-3 text-sm text-slate-400";
+    msg.textContent = "Проверяю листы…";
+
+    const headers = {
+      players: ["game_id", "current_nick", "level", "note", "source", "created_at", "updated_at", "deleted"],
+      history: ["game_id", "nick", "source", "seen_at", "removed", "removed_at"],
+    };
+
+    try {
+      const prov = SYNC.PROVIDERS[cfg.provider];
+      const done = [];
+      for (const sheet of [SYNC.SHEETS.players, SYNC.SHEETS.history]) {
+        const rows = await prov.list(cfg, sheet, { limit: 1, offset: 0 });
+        if (rows.length) {
+          done.push(`${sheet}: уже есть данные, шапку не трогаю`);
+          continue;
+        }
+        const row = Object.fromEntries((sheet === SYNC.SHEETS.players ? headers.players : headers.history).map((h) => [h, h]));
+        await prov.append(cfg, sheet, [row]);
+        done.push(`${sheet}: шапка создана`);
+      }
+      msg.className = "mt-3 text-sm text-emerald-300";
+      msg.textContent = done.join("\n");
+    } catch (e) {
+      msg.className = "mt-3 text-sm text-rose-300";
+      msg.textContent = "Не удалось создать листы: " + e.message;
+    }
+  });
+
+  $("btn-sync-now").addEventListener("click", () => runSync("full"));
+  $("btn-seed-pull").addEventListener("click", () => {
+    document.querySelector('.tab-btn[data-tab="sync"]').click();
+    runSync("full");
+  });
+
+  /* ---------- автосинхронизация ---------- */
+
+  function maybeAutoSync() {
+    if (!cfg.enabled || !SYNC.hasCredentials(cfg)) return;
+    const minutes = Number(cfg.autoPullMinutes) || 0;
+    if (!minutes) return;
+    const last = cfg.lastPullAt ? new Date(cfg.lastPullAt).getTime() : 0;
+    if (Date.now() - last < minutes * 60 * 1000) return;
+    runSync("full").catch(() => {});
+  }
+
+  /* ---------- инициализация ---------- */
+
+  function init() {
+    fillConfigForm();
+    updateStats();
+    renderResults("");
+    renderSyncStatus();
+    updateImportButtons();
+    maybeAutoSync();
+
+    window.addEventListener("online", () => {
+      showToast("Связь восстановлена — можно синхронизировать.", "indigo");
+    });
+    window.addEventListener("offline", () => {
+      showToast("Нет сети: данные доступны, изменения уйдут в таблицу позже.", "amber");
+    });
+  }
+
+  init();
+})();
+
 </script>
-
 </body>
 </html>
